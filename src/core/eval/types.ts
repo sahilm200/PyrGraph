@@ -10,7 +10,7 @@ export type TestStatus = 'idle' | 'running' | 'passed' | 'failed';
 
 export interface TestCase {
   id: string;
-  category: 'graph_logic' | 'team_reveal' | 'gemini_grounding' | 'contract_schemas';
+  category: 'graph_logic' | 'team_reveal' | 'gemini_grounding' | 'csv_import' | 'contract_schemas';
   title: string;
   description: string;
   status: TestStatus;

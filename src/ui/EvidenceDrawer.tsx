@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   RankedAccount,
   ProductBrief,
   IntroResponse,
+  OutreachTone,
 } from '../../shared/contracts';
 import { pyrgraphApi } from '../client/api';
 import { WARMTH_CONFIG } from './AccountCard';
@@ -14,13 +15,13 @@ import {
   Copy,
   Check,
   Building,
-  User,
   ShieldCheck,
   AlertCircle,
-  Send,
   MessageSquare,
-  FileText,
   BadgeCheck,
+  Briefcase,
+  Users,
+  Send,
 } from 'lucide-react';
 
 interface EvidenceDrawerProps {
@@ -36,17 +37,24 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
   viewerMemberId,
   onClose,
 }) => {
+  const [selectedTone, setSelectedTone] = useState<OutreachTone>('executive');
   const [draft, setDraft] = useState<IntroResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Reset draft when account changes
+  useEffect(() => {
+    setDraft(null);
+    setError(null);
+  }, [account?.id]);
 
   if (!account) return null;
 
   const warmth = WARMTH_CONFIG[account.accessWarmth];
   const path = account.bestPath;
 
-  const handleGenerateDraft = async () => {
+  const handleGenerateDraft = async (toneToUse: OutreachTone = selectedTone) => {
     if (!path) return;
     setIsGenerating(true);
     setError(null);
@@ -57,12 +65,20 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
         path,
         productBrief,
         viewerMemberId,
+        tone: toneToUse,
       });
       setDraft(response);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error generating outreach with Gemini');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleSelectTone = (tone: OutreachTone) => {
+    setSelectedTone(tone);
+    if (draft && path) {
+      handleGenerateDraft(tone);
     }
   };
 
@@ -73,7 +89,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[500px] bg-[#161b22] border-l border-[#30363d] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[520px] bg-[#161b22] border-l border-[#30363d] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
       {/* Drawer Header */}
       <div className="p-5 border-b border-[#30363d] bg-[#0d1117] flex items-center justify-between">
         <div className="space-y-1">
@@ -181,7 +197,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   {path.recommendedActionType === 'teammate_intro_request'
                     ? `Route through ${path.ownerMemberId === 'yanni' ? 'Yanni' : 'Sahil'} who holds the personal relationship.`
                     : path.recommendedActionType === 'direct_outreach'
-                    ? 'Direct warm outreach directly to buyer referencing verified past co-working history.'
+                    ? 'Direct warm outreach to buyer referencing verified past co-working history.'
                     : 'Low-pressure routing inquiry asking the contact to point to the RevOps team.'}
                 </p>
               </div>
@@ -198,17 +214,17 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
           )}
         </div>
 
-        {/* Gemini Intro Generator Section */}
+        {/* Gemini Intro Generator Section with Multi-Tone Selection */}
         {path && (
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#f0883e]" />
-                Gemini Next-Step Outreach
+                Gemini Multi-Tone Outreach
               </h3>
 
               <button
-                onClick={handleGenerateDraft}
+                onClick={() => handleGenerateDraft(selectedTone)}
                 disabled={isGenerating}
                 className="px-3 py-1.5 bg-[#f0883e] hover:bg-[#d97706] text-black font-semibold rounded-lg text-xs shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
@@ -220,9 +236,51 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
-                    {draft ? 'Regenerate Draft' : 'Draft Outreach'}
+                    {draft ? 'Regenerate' : 'Draft Outreach'}
                   </>
                 )}
+              </button>
+            </div>
+
+            {/* Tone Selector Toolbar */}
+            <div className="bg-[#0d1117] border border-[#30363d] rounded-xl p-1.5 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleSelectTone('executive')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  selectedTone === 'executive'
+                    ? 'bg-[#f0883e]/20 border border-[#f0883e] text-white shadow-xs'
+                    : 'text-[#8b949e] hover:text-white border border-transparent'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5 text-[#f0883e]" />
+                <span>Executive Formal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectTone('casual')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  selectedTone === 'casual'
+                    ? 'bg-[#f0883e]/20 border border-[#f0883e] text-white shadow-xs'
+                    : 'text-[#8b949e] hover:text-white border border-transparent'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-[#58a6ff]" />
+                <span>Peer Casual</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectTone('forwardable')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  selectedTone === 'forwardable'
+                    ? 'bg-[#f0883e]/20 border border-[#f0883e] text-white shadow-xs'
+                    : 'text-[#8b949e] hover:text-white border border-transparent'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Forwardable Blurb</span>
               </button>
             </div>
 
@@ -246,11 +304,16 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                     </span>
                   </div>
 
-                  {draft.isTemplateFallback && (
-                    <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
-                      Template Fallback
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-[#f0883e] font-mono capitalize">
+                      {draft.tone || selectedTone}
                     </span>
-                  )}
+                    {draft.isTemplateFallback && (
+                      <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+                        Template Fallback
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Subject Line */}
@@ -307,7 +370,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                     <div className="flex items-center justify-between text-[11px] text-[#8b949e]">
                       <span className="text-[#f0883e] font-semibold flex items-center gap-1">
                         <MessageSquare className="w-3 h-3" />
-                        Forwardable Blurb for {draft.recipientName}:
+                        Forwardable Double-Opt-In Blurb:
                       </span>
                       <button
                         onClick={() => copyToClipboard(draft.forwardableBlurb!, 'blurb')}

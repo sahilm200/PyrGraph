@@ -152,12 +152,31 @@ export interface AnalysisResponse {
   graphView: GraphViewData;
 }
 
+export type OutreachTone = 'executive' | 'casual' | 'forwardable';
+
+export interface CSVColumnMapping {
+  firstName: string;
+  lastName: string;
+  company: string;
+  position: string;
+  email: string;
+  connectedOn: string;
+  profileUrl: string;
+}
+
+export interface CSVImportOptions {
+  ownerMemberId: string;
+  defaultStrength?: EdgeStrength;
+  mapping?: Partial<CSVColumnMapping>;
+}
+
 export interface IntroRequest {
   accountId: string;
   accountName: string;
   path: ShortestPath;
   productBrief: ProductBrief;
   viewerMemberId: string; // The person looking at the screen ('sahil' or 'yanni')
+  tone?: OutreachTone;
 }
 
 export interface IntroResponse {
@@ -170,6 +189,7 @@ export interface IntroResponse {
   rationale: string;
   citations: string[];
   isTemplateFallback: boolean;
+  tone?: OutreachTone;
 }
 
 export interface HealthResponse {

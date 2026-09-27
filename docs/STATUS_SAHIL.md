@@ -1,24 +1,22 @@
 # STATUS: Sahil (Engine & Integrator)
 
-**Current Gate:** B0 / B1 / B2 / Eval (Core engine, team reveal, in-app diagnostics & strict citation grounding)  
+**Current Gate:** B0 / B1 / B2 / B3 / B4 (Core Engine, Team Reveal, Production CSV Importer, Multi-Tone Outreach & Diagnostics)  
 **Status:** READY  
 **Branch:** sahil-engine  
-**Files:** `src/core/eval/**`, `src/ui/DiagnosticsDrawer.tsx`, `src/App.tsx`, `docs/STATUS_SAHIL.md`  
+**Files:** `src/core/import/csv.ts`, `src/core/gemini.ts`, `src/ui/CSVImportModal.tsx`, `src/ui/EvidenceDrawer.tsx`, `shared/contracts.ts`, `src/core/eval/**`  
 
 ### Work Completed:
-1. Base scaffold and contracts defined (`shared/contracts.ts`, `shared/CONTRACT.md`).
-2. Rich shared synthetic team fixture initialized with Sahil + Yanni networks, target accounts (Stripe, Datadog, Snowflake, Figma, Acme Security).
-3. Deterministic graph traversal engine with shortest path search and access warmth calculation.
-4. Server endpoints implemented: `/api/health`, `/api/bootstrap`, `/api/analyze`, `/api/intro` with Gemini integration.
-5. In-app interactive Evaluation & Diagnostics Drawer (`src/ui/DiagnosticsDrawer.tsx`) with 7 automated invariant tests.
-6. Strict Gemini Grounding & Citation Verifier (`src/core/eval/grounding.ts`) ensuring 100% of cited claims map to verified graph evidence with zero hallucinations.
-7. Typed client API adapter (`src/client/api.ts`) ready for UI consumption.
+1. Production CSV Import Engine with RFC-4180 parsing, automatic fuzzy column mapping detection, and manual override dropdowns (`src/core/import/csv.ts`).
+2. Multi-pass identity deduplication by email and normalized name + company, merging cross-teammate edges without graph inflation.
+3. Interactive 3-step CSV Import Wizard with Upload/Sample -> Column Mapping -> Deduplication Preview -> Graph Merge (`src/ui/CSVImportModal.tsx`).
+4. Multi-tone Gemini outreach generation (Executive Formal, Peer Casual, Forwardable Blurb) powered by `gemini-3.8-flash` with deterministic template fallbacks (`src/core/gemini.ts`).
+5. Multi-tone toolbar tab selector in Evidence Drawer (`src/ui/EvidenceDrawer.tsx`) with instant clipboard copy utilities.
+6. Expanded automated diagnostics matrix to 10/10 automated tests (`CSV-01`, `CSV-02`, `GEMINI-03`).
 
 ### Test Results:
-- Invariants & Traversal: 7/7 tests passed in 113ms (0 failures).
-- Team reveal verification: Datadog unlocks from Cold to Hot through Yanni; Figma unlocks from Cold to Connected/Warm.
+- Diagnostic Matrix: 10/10 passed (0 failures) in ~120ms.
+- 100% citation grounding verified across all outreach modes.
 
-### Handoff to Yanni:
-- `shared/contracts.ts` and `src/client/api.ts` are live.
-- Diagnostics button is in the top right header navigation.
-- Active members toggle (`['sahil']` vs `['sahil', 'yanni']`) drives the account discovery and graph state.
+### Handoff:
+- All changes verified, clean lint (`npm run lint`), and compiled (`npm run build`).
+- Ready for integration and recording.
