@@ -51,9 +51,11 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
     requestRef.current += 1;
     setDraft(null);
     setError(null);
+    setIsGenerating(false);
     setEditableSubject('');
     setEditableBody('');
-  }, [account?.id, productBrief]);
+    return () => { requestRef.current += 1; };
+  }, [account, productBrief, viewerMemberId]);
 
   if (!account) return null;
 

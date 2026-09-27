@@ -1,7 +1,3 @@
-# STATUS: Yanni (UI & Presentation)
+# STATUS: Yanni
 
-**Gate:** Recording build candidate
-**Branch:** `yanni-ui`
-**State:** READY for Sahil review after push; browser verification blocked
-
-Removed header Analyze and Self-check. Import CSV opens the existing connections wizard; Import Accounts opens an honest pending-integration panel. CSV confirmation now triggers the existing automatic account recalculation. Smoothed the Flame rise to 720 ms with less canvas travel. TypeScript and Vite build pass. Browser automation remains blocked by the localhost URL policy, so interactive QA is pending. Contract impact: none. Sahil: merge this UI commit into `main` and wire the account import parser when ready.
+READY — Restored local full-stack visualizer on port 42820; static Vite preview had no draft API. Fixed drawer loading reset and stale-request invalidation on account/product/viewer changes. No contract or engine changes. Verified nine API drafts across Stripe, Datadog, Snowflake and all three tones; correct recipients, nonempty messages. Local output is labeled Template Fallback (Gemini key unavailable). TypeScript, production build, diff check pass. Interactive browser verification remains blocked by browser policy. Sahil: integrate the drawer fix; serve the full Node app for API-backed previews.
