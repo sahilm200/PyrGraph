@@ -1,0 +1,6 @@
+{
+  "name": "GitHub Connect",
+  "description": "Connect your GitHub account via OAuth or Personal Access Token to explore repositories, profile stats, and branches.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
