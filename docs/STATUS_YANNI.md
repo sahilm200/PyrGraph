@@ -2,6 +2,6 @@
 
 **Gate:** Recording build candidate
 **Branch:** `yanni-ui`
-**State:** READY for Sahil review after push
+**State:** READY for Sahil review after push; browser verification blocked
 
-Merged latest `main` into `yanni-ui`: Sahil's evaluation, API, and Gemini resilience changes build with the UI. Fixed the analysis header logo at 40×40; desktop and narrow previews now keep the graph visible. Preserved stale-response guards, loader, Particle Drift, and rising Flame. The 100-point evaluator is labeled an internal self-check. Local fixture shows reachable accounts 2→4. TypeScript and Vite build pass. Local health reports `geminiConfigured: false`; hosted Gemini and deployment remain unverified. Contract impact: none. Sahil should integrate this branch into `main` and deploy.
+Fast-forwarded to latest `main`. Corrected a canvas regression: GLSL ES 1.00 effects now request WebGL1, with guarded context creation and a 2D Particle Drift fallback. TypeScript and Vite build pass. The local browser tool rejected the localhost URL, so this fix still needs an interactive analysis-flow check. Contract impact: none. Sahil: merge this UI commit into `main`, deploy, and confirm entry → analysis on the hosted build.

@@ -232,12 +232,21 @@ function __OriginkitBase_ParticleDrift(props: Props) {
         const canvas = canvasRef.current
         if (!canvas) return
         const ctxOpts: WebGLContextAttributes = { alpha: true, antialias: false, depth: false, premultipliedAlpha: true }
-        const gl = (canvas.getContext("webgl2", ctxOpts) ||
-                    canvas.getContext("webgl", ctxOpts) ||
-                    canvas.getContext("experimental-webgl", ctxOpts)) as WebGLRenderingContext | null
+        // The supplied shaders target WebGL1. Keep 2D rendering as the fallback.
+        let gl: WebGLRenderingContext | null = null
+        try {
+            gl = canvas.getContext("webgl", ctxOpts) as WebGLRenderingContext | null
+        } catch {
+            // Some browsers reject context creation instead of returning null.
+        }
         if (!gl) {
             // Graceful 2D fallback for headless or restricted WebGL environments
-            const ctx2d = canvas.getContext("2d")
+            let ctx2d: CanvasRenderingContext2D | null = null
+            try {
+                ctx2d = canvas.getContext("2d")
+            } catch {
+                return
+            }
             if (!ctx2d) return
             let raf2d = 0
             const n = 45

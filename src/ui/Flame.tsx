@@ -228,9 +228,13 @@ function __OriginkitBase_Flame(props: FlameProps) {
         const canvas = canvasRef.current
         if (!canvas) return
         const ctxOpts: WebGLContextAttributes = { antialias: false, alpha: false, depth: false }
-        const gl = (canvas.getContext("webgl2", ctxOpts) ||
-                    canvas.getContext("webgl", ctxOpts) ||
-                    canvas.getContext("experimental-webgl", ctxOpts)) as WebGLRenderingContext | null
+        // These shaders use GLSL ES 1.00; a WebGL2 context cannot compile them.
+        let gl: WebGLRenderingContext | null = null
+        try {
+            gl = canvas.getContext("webgl", ctxOpts) as WebGLRenderingContext | null
+        } catch {
+            // The CSS heat glow still provides the reveal when WebGL is blocked.
+        }
         if (!gl) {
             return
         }
