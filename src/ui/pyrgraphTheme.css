@@ -19,7 +19,7 @@
   --pg-route-gradient: linear-gradient(90deg, #042333 0%, #173379 12.5%, #553b9d 25%, #814f8f 37.5%, #af5f82 50%, #de6f65 62.5%, #f99242 75%, #f9c441 87.5%, #e8fa5b 100%);
   --pg-duration-fast: 150ms;
   --pg-duration-state: 220ms;
-  --pg-duration-reveal: 850ms;
+  --pg-duration-reveal: 720ms;
   --pg-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --pg-ease-state: cubic-bezier(0.2, 0.7, 0.2, 1);
   --pg-z-sticky: 20;
@@ -178,8 +178,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .particle-drift { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 
 .flame-reveal { position: fixed; inset: 0; z-index: var(--pg-z-overlay); overflow: hidden; pointer-events: none; animation: reveal-glow var(--pg-duration-reveal) ease-out both; }
-.flame-reveal__heat { position: absolute; inset: auto 0 -15% 0; z-index: 2; height: 70%; background: radial-gradient(ellipse at 50% 100%, rgb(255 205 115 / 82%), rgb(255 100 32 / 40%) 34%, transparent 70%); filter: blur(22px); animation: reveal-rise var(--pg-duration-reveal) var(--pg-ease-state) both; }
-.flame-reveal__brush { position: absolute; inset: auto 0 -18% 0; z-index: 1; height: 90%; mask-image: linear-gradient(0deg, transparent, black 26%, black 66%, transparent); animation: reveal-rise var(--pg-duration-reveal) var(--pg-ease-state) both; }
+.flame-reveal__heat { position: absolute; inset: auto 0 -15% 0; z-index: 2; height: 70%; background: radial-gradient(ellipse at 50% 100%, rgb(255 205 115 / 82%), rgb(255 100 32 / 40%) 34%, transparent 70%); filter: blur(22px); animation: reveal-glow var(--pg-duration-reveal) ease-out both; }
+.flame-reveal__brush { position: absolute; inset: auto 0 -18% 0; z-index: 1; height: 90%; mask-image: linear-gradient(0deg, transparent, black 26%, black 66%, transparent); backface-visibility: hidden; will-change: transform, opacity; animation: reveal-rise var(--pg-duration-reveal) cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 .workspace-header { position: sticky; top: 0; z-index: var(--pg-z-sticky); border-bottom: 1px solid var(--pg-line-soft); background: rgb(21 20 18 / 94%); backdrop-filter: blur(16px); }
 .workspace-header__inner { width: min(1720px, 100%); min-height: 70px; margin: 0 auto; padding: 10px 26px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
@@ -201,11 +201,14 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .utility-button:hover:not(:disabled) { border-color: #655143; background: var(--pg-surface-raised); color: var(--pg-ink); }
 .utility-button:disabled { cursor: wait; opacity: 0.65; }
 .utility-button svg { width: 14px; height: 14px; color: var(--pg-gold); }
-.utility-button--analysis { min-height: 38px; gap: 12px; border: 0; padding: 0 13px; }
-.utility-button--judge { border-color: rgba(255, 107, 0, 0.35); background: rgba(255, 107, 0, 0.08); color: #ff9d5c; font-weight: 600; }
-.utility-button--judge:hover:not(:disabled) { border-color: rgba(255, 107, 0, 0.6); background: rgba(255, 107, 0, 0.16); color: #ffb885; }
-.utility-button--judge .judge-icon { color: #ff8533; }
-.utility-button--judge .judge-pass-badge { padding: 1px 5px; border-radius: 4px; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 9px; font-weight: 700; letter-spacing: 0.04em; }
+.utility-button--import { min-height: 42px; border-color: rgb(255 138 61 / 30%); padding-inline: 14px; color: var(--pg-ink); }
+.utility-button--import svg { color: var(--pg-ember); }
+.account-import-overlay { position: fixed; inset: 0; z-index: var(--pg-z-toast); display: grid; place-items: center; padding: 20px; background: rgb(8 8 8 / 78%); }
+.account-import-dialog { width: min(460px, 100%); border: 1px solid var(--pg-line); border-radius: 12px; padding: 28px; background: var(--pg-surface); box-shadow: 0 24px 80px rgb(0 0 0 / 50%); }
+.account-import-dialog__icon { display: inline-flex; width: 38px; height: 38px; align-items: center; justify-content: center; border: 1px solid rgb(255 138 61 / 30%); border-radius: 9px; color: var(--pg-ember); }
+.account-import-dialog h2 { margin: 16px 0 10px; font-size: 22px; }
+.account-import-dialog p { color: var(--pg-ink-muted); line-height: 1.55; }
+.account-import-dialog .utility-button { margin-top: 14px; }
 
 .workspace-summary { border-bottom: 1px solid var(--pg-line-soft); background: linear-gradient(90deg, rgb(39 29 23 / 67%), rgb(26 25 23 / 58%)); }
 .workspace-summary__inner { width: min(1720px, 100%); min-height: 54px; margin: 0 auto; padding: 9px 28px; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
@@ -329,8 +332,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes entry-arrive { from { opacity: 0; transform: translateY(10px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
 @keyframes toast-arrive { from { opacity: 0; transform: translateY(-7px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes reveal-glow { 0%, 100% { opacity: 0; } 38%, 66% { opacity: 1; } }
-@keyframes reveal-rise { 0% { transform: translateY(80%); opacity: 0; } 38% { transform: translateY(2%); opacity: 1; } 68% { transform: translateY(-10%); opacity: 1; } 100% { transform: translateY(-55%); opacity: 0; } }
+@keyframes reveal-glow { 0%, 100% { opacity: 0; } 38%, 70% { opacity: 1; } }
+@keyframes reveal-rise { 0% { transform: translate3d(0, 24%, 0); opacity: 0; } 42% { transform: translate3d(0, 0, 0); opacity: 1; } 72% { transform: translate3d(0, -3%, 0); opacity: 1; } 100% { transform: translate3d(0, -8%, 0); opacity: 0; } }
 
 @media (max-width: 1180px) {
   .workspace-header__inner { flex-wrap: wrap; padding-inline: 18px; }
@@ -362,7 +365,9 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
   .header-actions { gap: 5px; }
   .utility-button { padding-inline: 8px; }
   .utility-button span { display: none; }
-  .utility-button--analysis { min-height: 36px; padding-inline: 10px; }
+  .header-actions { flex-wrap: wrap; }
+  .utility-button--import { min-height: 36px; padding-inline: 9px; }
+  .utility-button--import span { display: inline; font-size: 10px; }
   .team-picker__label { display: none; }
   .team-toggle { flex: 1; justify-content: center; padding-inline: 6px; }
   .workspace-summary__inner { padding-inline: 14px; }

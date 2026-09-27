@@ -4,4 +4,4 @@
 **Branch:** `yanni-ui`
 **State:** READY for Sahil review after push; browser verification blocked
 
-Fast-forwarded to latest `main`. Corrected a canvas regression: GLSL ES 1.00 effects now request WebGL1, with guarded context creation and a 2D Particle Drift fallback. TypeScript and Vite build pass. The local browser tool rejected the localhost URL, so this fix still needs an interactive analysis-flow check. Contract impact: none. Sahil: merge this UI commit into `main`, deploy, and confirm entry → analysis on the hosted build.
+Removed header Analyze and Self-check. Import CSV opens the existing connections wizard; Import Accounts opens an honest pending-integration panel. CSV confirmation now triggers the existing automatic account recalculation. Smoothed the Flame rise to 720 ms with less canvas travel. TypeScript and Vite build pass. Browser automation remains blocked by the localhost URL policy, so interactive QA is pending. Contract impact: none. Sahil: merge this UI commit into `main` and wire the account import parser when ready.

@@ -27,7 +27,6 @@ import { EvaluationReport } from './core/eval/types';
 import { ACCESS_COLOR, ACCESS_LABEL, PYRGRAPH_LOGO_SRC, routeRankColor } from './ui/brand';
 import {
   AlertCircle,
-  Award,
   CheckCircle2,
   CircleHelp,
   Database,
@@ -70,6 +69,7 @@ export default function App() {
 
   const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAccountImportOpen, setIsAccountImportOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [evalReport, setEvalReport] = useState<EvaluationReport | null>(null);
   const [judgeScorecard, setJudgeScorecard] = useState<JudgeScorecard | null>(null);
@@ -152,7 +152,7 @@ export default function App() {
           revealTimeoutRef.current = window.setTimeout(() => {
             setIsLeavingEntry(false);
             revealTimeoutRef.current = null;
-          }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 850);
+          }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 720);
         }
       } catch (error) {
         if (requestId === analysisRequestRef.current && revision === inputRevisionRef.current) {
@@ -206,7 +206,7 @@ export default function App() {
   const handleImportComplete = (updatedSnapshot: GraphSnapshot) => {
     setSnapshot(updatedSnapshot);
     invalidateAnalysis();
-    showToast('Import saved to session. Select Analyze to refresh account access.', 'success');
+    showToast('Import saved to this session. Account access is recalculating.', 'success');
   };
 
   const handleResetFixture = () => {
@@ -243,13 +243,6 @@ export default function App() {
       setIsRunningJudge(false);
     }
   };
-
-  // Run internal evaluation on mount.
-  useEffect(() => {
-    pyrgraphApi.runEvaluatorJudge()
-      .then((sc) => setJudgeScorecard(sc))
-      .catch((err) => console.warn('Judge init error:', err));
-  }, []);
 
   const filteredAccounts = accounts.filter((account) => {
     const query = searchQuery.trim().toLowerCase();
@@ -331,23 +324,11 @@ export default function App() {
             <button type="button" className="utility-button" onClick={() => setIsBriefModalOpen(true)} title="Edit product brief">
               <SlidersHorizontal aria-hidden="true" /><span>Product</span>
             </button>
-            <button type="button" className="utility-button" onClick={() => setIsImportModalOpen(true)} title="Import a connections CSV">
-              <FileUp aria-hidden="true" /><span>Import</span>
+            <button type="button" className="utility-button utility-button--import" onClick={() => setIsImportModalOpen(true)} title="Import a connections CSV">
+              <FileUp aria-hidden="true" /><span>Import CSV</span>
             </button>
-
-            {/* Internal evaluation, separate from organizer judging. */}
-            <button
-              type="button"
-              className="utility-button utility-button--judge"
-              onClick={() => {
-                setIsDiagnosticsOpen(true);
-                if (!judgeScorecard) void handleRunJudge();
-              }}
-              title="Internal automated checks; not an organizer score"
-            >
-              <Award size={14} aria-hidden="true" className="judge-icon" />
-              <span>Self-check: {judgeScorecard ? `${judgeScorecard.compositeScore}/100` : 'Run checks'}</span>
-              {judgeScorecard && <span className="judge-pass-badge">{judgeScorecard.passed ? 'PASS' : 'REVIEW'}</span>}
+            <button type="button" className="utility-button utility-button--import" onClick={() => setIsAccountImportOpen(true)} title="Import target accounts">
+              <Database aria-hidden="true" /><span>Import Accounts</span>
             </button>
 
             <button
@@ -365,9 +346,6 @@ export default function App() {
             <button type="button" className="utility-button" onClick={handleResetFixture} title="Reset sample graph">
               <RefreshCw aria-hidden="true" />
             </button>
-            <CornerActionButton className="utility-button--analysis" onClick={handleRunAnalysis} disabled={isAnalyzing} busy={isAnalyzing}>
-              {isAnalyzing ? 'Analyzing' : 'Analyze'}
-            </CornerActionButton>
           </div>
         </div>
       </header>
@@ -438,7 +416,7 @@ export default function App() {
             })}
             {filteredAccounts.length === 0 && (
               <div className="account-empty" role="status">
-                {analysisPending ? 'Import ready. Select Analyze to rank the updated network.' : accounts.length === 0 && isAnalyzing ? 'Preparing account rankings…' : 'No accounts match this filter. Try another access status or clear your search.'}
+                {analysisPending ? 'Recalculating account access from the updated network…' : accounts.length === 0 && isAnalyzing ? 'Preparing account rankings…' : 'No accounts match this filter. Try another access status or clear your search.'}
               </div>
             )}
           </div>
@@ -492,6 +470,18 @@ export default function App() {
         onImportComplete={handleImportComplete}
         onClose={() => setIsImportModalOpen(false)}
       />
+
+      {isAccountImportOpen && (
+        <div className="account-import-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsAccountImportOpen(false); }}>
+          <section className="account-import-dialog" role="dialog" aria-modal="true" aria-labelledby="account-import-title" onKeyDown={(event) => { if (event.key === 'Escape') setIsAccountImportOpen(false); }}>
+            <div className="account-import-dialog__icon"><Database aria-hidden="true" /></div>
+            <h2 id="account-import-title">Import target accounts</h2>
+            <p>Account file import is being connected to the shared graph normalizer. No account data is uploaded or added from this panel yet.</p>
+            <p>The current analysis uses the known accounts in the sample graph. You can filter those accounts in the right sidebar.</p>
+            <button type="button" className="utility-button" autoFocus onClick={() => setIsAccountImportOpen(false)}>Back to analysis</button>
+          </section>
+        </div>
+      )}
 
       <DiagnosticsDrawer
         isOpen={isDiagnosticsOpen}
