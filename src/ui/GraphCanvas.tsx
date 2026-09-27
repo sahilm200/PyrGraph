@@ -1,314 +1,197 @@
 import React, { useMemo } from 'react';
-import { GraphViewData, RankedAccount } from '../../shared/contracts';
+import { AccessWarmth, GraphViewData, RankedAccount } from '../../shared/contracts';
+import { ACCESS_COLOR, ACCESS_LABEL, routeRankColor } from './brand';
+import { GitBranch, Info } from 'lucide-react';
 
 interface GraphCanvasProps {
   graphView: GraphViewData;
+  rankedAccounts: RankedAccount[];
   selectedAccount: RankedAccount | null;
+  highlightedAccountId: string | null;
+  onHighlightAccount: (accountId: string | null) => void;
   onSelectAccountById: (accountId: string) => void;
-  activeMemberIds: string[];
 }
+
+const ACCESS_SWATCH: Record<AccessWarmth, string> = ACCESS_COLOR;
 
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   graphView,
+  rankedAccounts,
   selectedAccount,
+  highlightedAccountId,
+  onHighlightAccount,
   onSelectAccountById,
-  activeMemberIds,
 }) => {
-  // Compute clean, structured layout coordinates
-  // Left column: Team members
-  // Middle column: Contacts
-  // Right column: Accounts
   const layout = useMemo(() => {
-    const width = 640;
-    const height = 480;
-
-    const teamNodes = graphView.nodes.filter((n) => n.type === 'team_member');
-    const contactNodes = graphView.nodes.filter((n) => n.type === 'contact');
-    const accountNodes = graphView.nodes.filter((n) => n.type === 'account');
-
+    const width = 1140;
+    const contactNodes = graphView.nodes.filter((node) => node.type === 'contact').sort((a, b) => a.id.localeCompare(b.id));
+    const teamNodes = graphView.nodes.filter((node) => node.type === 'team_member');
+    const accountNodes = graphView.nodes.filter((node) => node.type === 'account');
+    const height = Math.max(620, Math.max(contactNodes.length, accountNodes.length) * 96 + 118);
     const positions = new Map<string, { x: number; y: number }>();
+    const spread = (count: number) => count < 2 ? [height / 2] : Array.from({ length: count }, (_, index) => 92 + (height - 184) * index / (count - 1));
 
-    // 1. Team column (x = 70)
-    teamNodes.forEach((node, i) => {
-      const step = height / (teamNodes.length + 1);
-      positions.set(node.id, { x: 75, y: step * (i + 1) });
+    teamNodes.forEach((node, index) => {
+      const center = height / 2;
+      const offset = (index - (teamNodes.length - 1) / 2) * 132;
+      positions.set(node.id, { x: 114, y: center + offset });
     });
+    contactNodes.forEach((node, index) => positions.set(node.id, { x: 556, y: spread(contactNodes.length)[index] }));
 
-    // 2. Contacts column (x = 300)
-    contactNodes.forEach((node, i) => {
-      const step = height / (contactNodes.length + 1);
-      positions.set(node.id, { x: 300, y: step * (i + 1) });
-    });
-
-    // 3. Accounts column (x = 540)
-    accountNodes.forEach((node, i) => {
-      const step = height / (accountNodes.length + 1);
-      positions.set(node.id, { x: 535, y: step * (i + 1) });
-    });
+    const rankIndexById = new Map(rankedAccounts.map((account, index) => [account.id, index]));
+    accountNodes
+      .sort((a, b) => (rankIndexById.get(a.id) ?? 0) - (rankIndexById.get(b.id) ?? 0))
+      .forEach((node, index) => positions.set(node.id, { x: 1030, y: spread(accountNodes.length)[index] }));
 
     return { width, height, positions };
-  }, [graphView]);
+  }, [graphView, rankedAccounts]);
 
-  // Identify nodes and edges on the selected account's best path
-  const selectedPathNodes = useMemo(() => {
-    const set = new Set<string>();
-    if (!selectedAccount || !selectedAccount.bestPath) return set;
-    set.add(selectedAccount.id);
-    set.add(selectedAccount.bestPath.ownerMemberId);
-    if (selectedAccount.bestPath.targetContact) {
-      set.add(selectedAccount.bestPath.targetContact.id);
-    }
-    return set;
-  }, [selectedAccount]);
+  const rankedEdges = useMemo(() => {
+    const result = new Map<string, { accountId: string; rank: number; color: string }>();
+    rankedAccounts.forEach((account, rank) => {
+      const color = routeRankColor(rank, rankedAccounts.length);
+      account.bestPath?.steps.forEach((step) => {
+        const key = `${step.fromId}->${step.toId}`;
+        if (!result.has(key)) result.set(key, { accountId: account.id, rank: rank + 1, color });
+      });
+    });
+    return result;
+  }, [rankedAccounts]);
 
-  const selectedPathEdges = useMemo(() => {
-    const set = new Set<string>();
-    if (!selectedAccount || !selectedAccount.bestPath) return set;
-    const ownerId = selectedAccount.bestPath.ownerMemberId;
-    const contactId = selectedAccount.bestPath.targetContact?.id;
-    if (ownerId && contactId) {
-      set.add(`${ownerId}->${contactId}`);
-      set.add(`${contactId}->${selectedAccount.id}`);
-    }
-    return set;
-  }, [selectedAccount]);
+  const activeAccount = rankedAccounts.find((account) => account.id === highlightedAccountId) || selectedAccount;
+  const activePathEdges = useMemo(() => new Set(activeAccount?.bestPath?.steps.map((step) => `${step.fromId}->${step.toId}`) || []), [activeAccount]);
+  const accountById = useMemo(() => new Map(rankedAccounts.map((account) => [account.id, account])), [rankedAccounts]);
 
   return (
-    <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4 shadow-xl flex flex-col justify-between relative overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#f0883e] animate-pulse" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-            2D Team Relationship Graph
-          </h3>
+    <section className="graph-panel" aria-labelledby="graph-title">
+      <header className="graph-panel__header">
+        <div className="graph-panel__title">
+          <GitBranch aria-hidden="true" />
+          <div>
+            <h2 id="graph-title">Team network</h2>
+            <p>Hover or focus a ranked route. Select an account to inspect its evidence.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3 text-[11px] text-[#8b949e]">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#da3633]" /> Hot
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#f0883e]" /> Warm
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#d29922]" /> Connected
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#30363d]" /> Cold
-          </span>
+        <div className="graph-legend" aria-label="Graph legends">
+          <span className="legend-item"><i className="legend-dot" style={{ '--legend-color': 'var(--pg-hot)' } as React.CSSProperties} />{ACCESS_LABEL.hot}</span>
+          <span className="legend-item"><i className="legend-dot" style={{ '--legend-color': 'var(--pg-warm)' } as React.CSSProperties} />{ACCESS_LABEL.warm}</span>
+          <span className="legend-item"><i className="legend-dot" style={{ '--legend-color': 'var(--pg-connected)' } as React.CSSProperties} />{ACCESS_LABEL.connected}</span>
+          <span className="legend-item"><i className="legend-dot" style={{ '--legend-color': 'var(--pg-cold)' } as React.CSSProperties} />{ACCESS_LABEL.cold}</span>
+          {rankedAccounts.length > 0 && <span className="route-rank-legend" aria-label="Route rank: highest to lowest">
+            Route rank <i className="route-rank-legend__bar" /> <span>1 → {rankedAccounts.length}</span>
+          </span>}
         </div>
-      </div>
+      </header>
 
-      {/* SVG Canvas */}
-      <div className="w-full flex-1 flex items-center justify-center min-h-[380px]">
-        <svg
-          viewBox={`0 0 ${layout.width} ${layout.height}`}
-          className="w-full h-full max-h-[460px] select-none"
-        >
+      <div className="graph-scroll">
+        <svg className="graph-svg" viewBox={`0 0 ${layout.width} ${layout.height}`} style={{ height: layout.height }} role="img" aria-label="Interactive team relationship graph with ranked account routes">
           <defs>
-            <linearGradient id="edge-hot" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#f0883e" />
-              <stop offset="100%" stopColor="#da3633" />
-            </linearGradient>
-            <linearGradient id="edge-warm" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#e3b341" />
-              <stop offset="100%" stopColor="#f0883e" />
-            </linearGradient>
-            <filter id="glow-hot" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
+            <pattern id="graph-grid" width="36" height="36" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="0.8" fill="#d5aa83" fillOpacity="0.12" />
+            </pattern>
+            <marker id="route-arrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 8 4 L 0 8 z" fill="#c9b9a7" fillOpacity="0.7" />
+            </marker>
           </defs>
+          <rect width={layout.width} height={layout.height} fill="url(#graph-grid)" />
+          <text className="graph-column-label" x="114" y="42">TEAM</text>
+          <text className="graph-column-label" x="556" y="42">PEOPLE</text>
+          <text className="graph-column-label" x="1030" y="42">ACCOUNTS · RANKED</text>
 
-          {/* Edges */}
           {graphView.edges.map((edge) => {
-            const src = layout.positions.get(edge.source);
-            const tgt = layout.positions.get(edge.target);
-            if (!src || !tgt) return null;
-
-            const isSelected = selectedPathEdges.has(`${edge.source}->${edge.target}`);
-            const isActive = edge.isActive;
-
-            let strokeColor = '#30363d';
-            let strokeWidth = 1.5;
-            let opacity = isActive ? 0.6 : 0.15;
-
-            if (isSelected) {
-              strokeColor = '#f0883e';
-              strokeWidth = 3;
-              opacity = 1;
-            } else if (isActive) {
-              if (edge.warmth === 'warm') strokeColor = '#f0883e';
-              else if (edge.warmth === 'hot') strokeColor = '#da3633';
-              else strokeColor = '#d29922';
-            }
-
-            // Curved cubic bezier
-            const dx = tgt.x - src.x;
-            const pathD = `M ${src.x} ${src.y} C ${src.x + dx * 0.45} ${src.y}, ${tgt.x - dx * 0.45} ${tgt.y}, ${tgt.x} ${tgt.y}`;
-
+            const from = layout.positions.get(edge.source);
+            const to = layout.positions.get(edge.target);
+            if (!from || !to) return null;
+            const key = `${edge.source}->${edge.target}`;
+            const rank = rankedEdges.get(key);
+            const emphasized = activePathEdges.has(key);
+            const sourceNode = graphView.nodes.find((node) => node.id === edge.source);
+            const targetNode = graphView.nodes.find((node) => node.id === edge.target);
+            const sourceRadius = sourceNode?.type === 'team_member' ? 25 : sourceNode?.type === 'account' ? 75 : 18;
+            const targetRadius = targetNode?.type === 'account' ? 75 : targetNode?.type === 'team_member' ? 25 : 18;
+            const d = `M ${from.x + sourceRadius} ${from.y} C ${from.x + 156} ${from.y}, ${to.x - 156} ${to.y}, ${to.x - targetRadius} ${to.y}`;
             return (
               <g key={edge.id}>
-                {isSelected && (
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke="#f0883e"
-                    strokeWidth={7}
-                    opacity={0.3}
-                    filter="url(#glow-hot)"
-                  />
-                )}
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke={strokeColor}
-                  strokeWidth={strokeWidth}
-                  strokeDasharray={edge.strength === 'unknown' ? '4,4' : undefined}
-                  opacity={opacity}
-                  className="transition-all duration-300"
-                />
+              {emphasized && <path d={d} className="graph-edge-understroke" />}
+              <path
+                d={d}
+                className={`graph-edge${edge.isActive ? ' is-active' : ''}${rank ? ' is-ranked' : ''}${emphasized ? ' is-emphasized' : ''}`}
+                stroke={rank ? rank.color : edge.type === 'contact_to_company' ? '#8b8176' : '#73675a'}
+                strokeDasharray={edge.type === 'contact_to_company' ? '3 6' : edge.strength === 'unknown' ? '5 6' : undefined}
+                markerEnd={edge.type === 'contact_to_company' ? undefined : 'url(#route-arrow)'}
+                aria-label={edge.type === 'contact_to_company' ? 'Works at account' : 'Recorded relationship'}
+              />
               </g>
             );
           })}
 
-          {/* Nodes */}
           {graphView.nodes.map((node) => {
-            const pos = layout.positions.get(node.id);
-            if (!pos) return null;
-
-            const isSelected = selectedPathNodes.has(node.id);
+            const point = layout.positions.get(node.id);
+            if (!point) return null;
             const isAccount = node.type === 'account';
-            const isTeam = node.type === 'team_member';
-            const isContact = node.type === 'contact';
-            const isActive = node.isActive;
-
-            let nodeColor = '#30363d';
-            let nodeBorder = '#484f58';
-            let textColor = '#c9d1d9';
-
-            if (isTeam) {
-              nodeColor = isActive ? '#21262d' : '#161b22';
-              nodeBorder = isActive ? '#58a6ff' : '#30363d';
-              textColor = isActive ? '#58a6ff' : '#6e7681';
-            } else if (isContact) {
-              nodeColor = isActive ? '#1c2128' : '#161b22';
-              nodeBorder = isActive ? '#f0883e' : '#30363d';
-              textColor = isActive ? '#f0f6fc' : '#6e7681';
-            } else if (isAccount) {
-              if (node.warmth === 'hot') {
-                nodeColor = '#da3633';
-                nodeBorder = '#f85149';
-                textColor = '#ffffff';
-              } else if (node.warmth === 'warm') {
-                nodeColor = '#f0883e';
-                nodeBorder = '#ffa657';
-                textColor = '#ffffff';
-              } else if (node.warmth === 'connected') {
-                nodeColor = '#d29922';
-                nodeBorder = '#e3b341';
-                textColor = '#ffffff';
-              } else {
-                nodeColor = '#21262d';
-                nodeBorder = '#30363d';
-                textColor = '#6e7681';
-              }
-            }
-
+            const account = isAccount ? accountById.get(node.id) : undefined;
+            const rank = account ? rankedAccounts.findIndex((item) => item.id === account.id) + 1 : 0;
+            const routeColor = account ? routeRankColor(rank - 1, rankedAccounts.length) : 'var(--pg-ember)';
+            const isEmphasized = activeAccount?.id === account?.id;
+            const accessColor = node.warmth ? ACCESS_SWATCH[node.warmth] : 'var(--pg-cold)';
+            const label = node.label.length > 22 ? `${node.label.slice(0, 20)}…` : node.label;
+            const accountName = account ? `${rank}. ${account.name}` : node.label;
             return (
               <g
                 key={node.id}
-                transform={`translate(${pos.x}, ${pos.y})`}
+                className={`graph-node${isAccount ? ' graph-node--account' : ''}${node.isActive || node.type === 'team_member' ? ' is-active' : ''}${isEmphasized ? ' is-emphasized' : ''}`}
+                transform={`translate(${point.x} ${point.y})`}
+                style={{ '--route-color': routeColor, '--node-access-color': accessColor } as React.CSSProperties}
+                role={isAccount ? 'button' : undefined}
+                tabIndex={isAccount ? 0 : undefined}
+                aria-label={isAccount && account ? `${accountName}, ${ACCESS_LABEL[account.accessWarmth]}, fit ${account.fitScore} out of 100. Select to inspect evidence.` : undefined}
+                aria-pressed={isAccount ? selectedAccount?.id === node.id : undefined}
+                onMouseEnter={() => isAccount && onHighlightAccount(node.id)}
+                onMouseLeave={() => isAccount && onHighlightAccount(null)}
+                onFocus={() => isAccount && onHighlightAccount(node.id)}
+                onBlur={() => isAccount && onHighlightAccount(null)}
                 onClick={() => isAccount && onSelectAccountById(node.id)}
-                className={`transition-all duration-300 ${isAccount ? 'cursor-pointer hover:opacity-90' : ''}`}
-                opacity={isActive || isTeam ? 1 : 0.35}
+                onKeyDown={(event) => {
+                  if (isAccount && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
+                    onSelectAccountById(node.id);
+                  }
+                }}
               >
-                {/* Selected glow */}
-                {isSelected && (
-                  <circle
-                    r={isAccount ? 24 : 20}
-                    fill="none"
-                    stroke="#f0883e"
-                    strokeWidth={4}
-                    opacity={0.6}
-                    filter="url(#glow-hot)"
-                    className="animate-pulse"
-                  />
-                )}
-
-                {/* Node body */}
                 {isAccount ? (
-                  <rect
-                    x={-45}
-                    y={-14}
-                    width={90}
-                    height={28}
-                    rx={6}
-                    fill={node.warmth === 'cold' ? '#161b22' : nodeColor}
-                    stroke={isSelected ? '#ffffff' : nodeBorder}
-                    strokeWidth={isSelected ? 2 : 1.5}
-                    className="shadow-md"
-                  />
+                  <>
+                    <rect className="graph-node__body" x="-75" y="-25" width="150" height="50" rx="8" />
+                    <circle className="graph-node__rank" cx="-59" cy="-9" r="12" />
+                    <text className="graph-node__rank-text" x="-59" y="-9">{rank}</text>
+                    <text className="graph-node__name" y="4">{label}</text>
+                    <text className="graph-node__sub" y="19">{ACCESS_LABEL[account?.accessWarmth || 'cold']}</text>
+                    <circle className="graph-node__access" cx="62" cy="-14" r="5" fill={accessColor} />
+                  </>
+                ) : node.type === 'team_member' ? (
+                  <>
+                    <circle className="graph-node__body graph-node__body--member" r="25" />
+                    <text className="graph-node__name" y="4">{node.label.slice(0, 1)}</text>
+                    <text className="graph-node__sub" y="43">{label}</text>
+                  </>
                 ) : (
-                  <circle
-                    r={isTeam ? 18 : 14}
-                    fill={nodeColor}
-                    stroke={isSelected ? '#ffffff' : nodeBorder}
-                    strokeWidth={isSelected ? 2 : 1.5}
-                  />
-                )}
-
-                {/* Node Icon / Initial */}
-                {isTeam && (
-                  <text
-                    textAnchor="middle"
-                    dy=".35em"
-                    fontSize={11}
-                    fontWeight="bold"
-                    fill={textColor}
-                  >
-                    {node.label[0]}
-                  </text>
-                )}
-
-                {/* Label text */}
-                <text
-                  x={isAccount ? 0 : 0}
-                  y={isAccount ? 4 : isTeam ? 28 : 22}
-                  textAnchor="middle"
-                  fontSize={isAccount ? 11 : 10}
-                  fontWeight={isAccount ? 'bold' : 'normal'}
-                  fill={isAccount && node.warmth !== 'cold' ? '#ffffff' : textColor}
-                  className="pointer-events-none select-none"
-                >
-                  {node.label}
-                </text>
-
-                {/* Sub-label for contacts / members */}
-                {!isAccount && node.subLabel && (
-                  <text
-                    x={0}
-                    y={isTeam ? 39 : 32}
-                    textAnchor="middle"
-                    fontSize={8.5}
-                    fill="#8b949e"
-                    className="pointer-events-none select-none truncate"
-                  >
-                    {node.subLabel.slice(0, 18)}
-                  </text>
+                  <>
+                    <circle className="graph-node__body graph-node__body--person" r="18" />
+                    <text className="graph-node__name" y="42">{label}</text>
+                    <text className="graph-node__sub" y="56">{(node.subLabel || '').slice(0, 24)}</text>
+                  </>
                 )}
               </g>
             );
           })}
         </svg>
       </div>
-
-      {/* Footer column legend */}
-      <div className="grid grid-cols-3 text-center text-[10px] text-[#8b949e] border-t border-[#30363d]/60 pt-2 font-mono uppercase tracking-wider">
-        <span>Team Members</span>
-        <span>Network Contacts</span>
-        <span>Target Accounts</span>
+      <footer className="graph-columns">
+        <span>Team members</span><span>Network contacts</span><span>Target accounts</span>
+      </footer>
+      <div className="graph-note" style={{ padding: '0 16px 13px' }}>
+        <Info aria-hidden="true" />
+        <span>Solid links show recorded relationships. Dashed links show where a contact works; employment does not imply a personal relationship. Account access badges are engine results. Route colors show rank.</span>
       </div>
-    </div>
+    </section>
   );
 };
