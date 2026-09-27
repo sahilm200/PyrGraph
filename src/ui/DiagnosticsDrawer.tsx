@@ -63,7 +63,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
   const passRate =
     report && report.totalTests > 0
       ? Math.round((report.passedCount / report.totalTests) * 100)
-      : 100;
+      : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -80,11 +80,11 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
                   Engine Quality &amp; Evaluation Center
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#21262d] text-[#8b949e] border border-[#30363d]">
-                  Gate: &ge;85%
+                  Internal gate: ≥85%
                 </span>
               </div>
               <p className="text-xs text-[#8b949e] mt-0.5">
-                Automated 100-point hackathon rubric judge, graph bounds &amp; citation verification.
+                Internal 100-point checks for graph bounds and citation grounding. This is not an organizer score.
               </p>
             </div>
           </div>
@@ -108,7 +108,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            100-Point Judge Rubric
+            Internal Self-Check
             {scorecard && (
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
@@ -140,7 +140,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
           </button>
         </div>
 
-        {/* Tab 1: 100-Point Judge Rubric */}
+        {/* Tab 1: internal 100-point self-check */}
         {activeTab === 'judge' && (
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {/* Scorecard Hero Banner */}
@@ -149,11 +149,11 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col">
                     <span className="text-xs uppercase tracking-wider text-[#8b949e] font-semibold">
-                      Judge Composite Score
+                      Internal Check Score
                     </span>
                     <div className="flex items-baseline gap-2 mt-1">
                       <span className="text-4xl font-extrabold text-white tracking-tight font-mono">
-                        {scorecard ? scorecard.compositeScore : 100}
+                        {scorecard ? scorecard.compositeScore : '—'}
                       </span>
                       <span className="text-lg text-[#8b949e] font-mono">/ 100</span>
                     </div>
@@ -164,17 +164,16 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
                   <div>
                     <span
                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                        scorecard?.passed ?? true
+                        scorecard?.passed ?? false
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                           : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                       }`}
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      {scorecard?.passed ?? true ? 'PASSED (GATE &ge; 85%)' : 'BELOW 85% GATE'}
+                      {scorecard ? (scorecard.passed ? 'PASSED INTERNAL GATE' : 'BELOW INTERNAL GATE') : 'NOT RUN'}
                     </span>
                     <p className="text-[11px] text-[#8b949e] mt-1 font-mono">
-                      Timestamp: {scorecard ? new Date(scorecard.timestamp).toLocaleTimeString() : 'Current'} · Sha:{' '}
-                      {scorecard?.gitCommitSha || 'main'}
+                      {scorecard ? `Timestamp: ${new Date(scorecard.timestamp).toLocaleTimeString()} · Sha: ${scorecard.gitCommitSha}` : 'Run the check to see a result.'}
                     </p>
                   </div>
                 </div>
@@ -195,7 +194,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
                   ) : (
                     <>
                       <Play className="w-3.5 h-3.5 fill-current" />
-                      Run Full Judge Audit
+                      Run Internal Checks
                     </>
                   )}
                 </button>
@@ -206,11 +205,11 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
                 <div className="w-full bg-[#21262d] rounded-full h-2 overflow-hidden">
                   <div
                     className={`h-full transition-all duration-500 rounded-full ${
-                      (scorecard?.percentage ?? 100) >= 85
+                      (scorecard?.percentage ?? 0) >= 85
                         ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
                         : 'bg-gradient-to-r from-rose-500 to-amber-500'
                     }`}
-                    style={{ width: `${scorecard?.percentage ?? 100}%` }}
+                    style={{ width: `${scorecard?.percentage ?? 0}%` }}
                   />
                 </div>
               </div>

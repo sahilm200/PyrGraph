@@ -235,16 +235,16 @@ export default function App() {
     try {
       const scorecard = await pyrgraphApi.runEvaluatorJudge();
       setJudgeScorecard(scorecard);
-      showToast(`Judge Score: ${scorecard.compositeScore}/100 (${scorecard.passed ? 'PASS' : 'FAIL'})`, 'success');
+      showToast(`Internal check: ${scorecard.compositeScore}/100 (${scorecard.passed ? 'pass' : 'needs review'})`, 'success');
     } catch (error) {
       console.error('Judge failure:', error);
-      showToast('Automated judge audit could not finish.', 'warn');
+      showToast('Internal automated check could not finish.', 'warn');
     } finally {
       setIsRunningJudge(false);
     }
   };
 
-  // Run judge audit on mount
+  // Run internal evaluation on mount.
   useEffect(() => {
     pyrgraphApi.runEvaluatorJudge()
       .then((sc) => setJudgeScorecard(sc))
@@ -335,7 +335,7 @@ export default function App() {
               <FileUp aria-hidden="true" /><span>Import</span>
             </button>
 
-            {/* Official 100-Point Hackathon Judge Rubric Button */}
+            {/* Internal evaluation, separate from organizer judging. */}
             <button
               type="button"
               className="utility-button utility-button--judge"
@@ -343,13 +343,11 @@ export default function App() {
                 setIsDiagnosticsOpen(true);
                 if (!judgeScorecard) void handleRunJudge();
               }}
-              title="Official 100-Point Hackathon Judge Rubric"
+              title="Internal automated checks; not an organizer score"
             >
               <Award size={14} aria-hidden="true" className="judge-icon" />
-              <span>Judge: {judgeScorecard ? `${judgeScorecard.compositeScore}/100` : '100/100'}</span>
-              <span className="judge-pass-badge">
-                {judgeScorecard?.passed ?? true ? 'PASS' : 'FAIL'}
-              </span>
+              <span>Self-check: {judgeScorecard ? `${judgeScorecard.compositeScore}/100` : 'Run checks'}</span>
+              {judgeScorecard && <span className="judge-pass-badge">{judgeScorecard.passed ? 'PASS' : 'REVIEW'}</span>}
             </button>
 
             <button
