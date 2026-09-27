@@ -75,7 +75,12 @@ export default function App() {
   const analysisRequestRef = useRef(0);
   const enteredWorkspaceRef = useRef(false);
   const skipNextAnalysisRef = useRef(false);
+  const revealTimeoutRef = useRef<number | null>(null);
   inputRevisionRef.current = inputRevision;
+
+  useEffect(() => () => {
+    if (revealTimeoutRef.current !== null) window.clearTimeout(revealTimeoutRef.current);
+  }, []);
 
   const invalidateAnalysis = () => {
     analysisRequestRef.current += 1;
@@ -118,6 +123,7 @@ export default function App() {
     revision: number,
   ) => {
     const requestId = ++analysisRequestRef.current;
+    const startedAt = performance.now();
     setIsAnalyzing(true);
     setAnalysisPending(false);
     setAnalysisError(null);
@@ -136,19 +142,24 @@ export default function App() {
       });
 
       if (requestId !== analysisRequestRef.current || revision !== inputRevisionRef.current || response.inputRevision !== revision) return;
+      setAnalysisStep(2);
+      if (!enteredWorkspaceRef.current) {
+        const visibleMs = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1200;
+        await new Promise<void>((resolve) => window.setTimeout(resolve, Math.max(0, visibleMs - (performance.now() - startedAt))));
+        if (requestId !== analysisRequestRef.current || revision !== inputRevisionRef.current) return;
+      }
       setAccounts(response.accounts);
       setSummary(response.summary);
       setGraphView(response.graphView);
       setSelectedAccount((current) => current ? response.accounts.find((account) => account.id === current.id) || null : null);
-      setAnalysisStep(2);
       if (!enteredWorkspaceRef.current) {
+        enteredWorkspaceRef.current = true;
+        setHasEnteredWorkspace(true);
         setIsLeavingEntry(true);
-        window.setTimeout(() => {
-          if (requestId !== analysisRequestRef.current || revision !== inputRevisionRef.current) return;
-          enteredWorkspaceRef.current = true;
-          setHasEnteredWorkspace(true);
+        revealTimeoutRef.current = window.setTimeout(() => {
           setIsLeavingEntry(false);
-        }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 700);
+          revealTimeoutRef.current = null;
+        }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 850);
       }
     } catch (error) {
       if (requestId === analysisRequestRef.current && revision === inputRevisionRef.current) {
@@ -231,17 +242,17 @@ export default function App() {
             <span><Gauge aria-hidden="true" /> Evidence-backed routes</span>
           </div>
           <CornerActionButton onClick={handleEnterWorkspace} disabled={isAnalyzing} busy={isAnalyzing}>{isAnalyzing ? 'Analyzing network' : 'Analyze the sample network'}</CornerActionButton>
-          {isAnalyzing && <MultiStepLoader activeStep={analysisStep} />}
+          {isAnalyzing && <MultiStepLoader activeStep={analysisStep} showFireball />}
           {analysisError && <div className="analysis-error" role="alert">{analysisError} <button type="button" onClick={handleEnterWorkspace}>Retry</button></div>}
           <p className="entry-footnote">Synthetic demo data · Imports stay in this browser session</p>
         </section>
-          {isLeavingEntry && <FlameReveal />}
       </div>
     );
   }
 
   return (
     <div className="app-shell">
+      {isLeavingEntry && <FlameReveal />}
       {toast && (
         <div className="toast-message" role="status" aria-live="polite">
           {toast.type === 'success' ? <CheckCircle2 aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
