@@ -21,6 +21,9 @@ import { GraphCanvas } from './ui/GraphCanvas';
 import { EvidenceDrawer } from './ui/EvidenceDrawer';
 import { ProductBriefModal } from './ui/ProductBriefModal';
 import { CSVImportModal } from './ui/CSVImportModal';
+import { DiagnosticsDrawer } from './ui/DiagnosticsDrawer';
+import { runAllDiagnostics } from './core/eval/runner';
+import { EvaluationReport } from './core/eval/types';
 import {
   Users,
   Sliders,
@@ -34,6 +37,7 @@ import {
   HelpCircle,
   Shield,
   Layers,
+  Cpu,
 } from 'lucide-react';
 
 export default function App() {
@@ -52,6 +56,9 @@ export default function App() {
 
   const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [evalReport, setEvalReport] = useState<EvaluationReport | null>(null);
+  const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
@@ -59,6 +66,28 @@ export default function App() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  const handleRunDiagnostics = useCallback(async () => {
+    setIsRunningDiagnostics(true);
+    try {
+      const report = await runAllDiagnostics(snapshot, productBrief);
+      setEvalReport(report);
+      showToast(
+        `Diagnostics complete: ${report.passedCount}/${report.totalTests} tests passed (${report.durationMs}ms).`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Diagnostics error:', err);
+      showToast('Error executing diagnostics suite.', 'info');
+    } finally {
+      setIsRunningDiagnostics(false);
+    }
+  }, [snapshot, productBrief]);
+
+  // Initial background diagnostics run
+  useEffect(() => {
+    runAllDiagnostics(snapshot, productBrief).then((rep) => setEvalReport(rep)).catch(() => {});
+  }, [snapshot, productBrief]);
 
   // Run graph evaluation
   const runAnalysis = useCallback(
@@ -221,6 +250,21 @@ export default function App() {
             >
               <Upload className="w-3.5 h-3.5 text-purple-400" />
               <span className="hidden sm:inline">Import CSV</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsDiagnosticsOpen(true);
+                if (!evalReport) handleRunDiagnostics();
+              }}
+              className="px-3 py-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-white text-xs font-medium border border-[#30363d] transition-colors flex items-center gap-1.5"
+              title="Run Diagnostics & Grounding Evaluation"
+            >
+              <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Diagnostics</span>
+              {evalReport && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 ml-0.5 animate-pulse" />
+              )}
             </button>
 
             <button
@@ -391,6 +435,15 @@ export default function App() {
         currentSnapshot={snapshot}
         onImportComplete={handleImportComplete}
         onClose={() => setIsImportModalOpen(false)}
+      />
+
+      {/* In-App Interactive Diagnostics & Grounding Drawer */}
+      <DiagnosticsDrawer
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+        report={evalReport}
+        isRunning={isRunningDiagnostics}
+        onRunDiagnostics={handleRunDiagnostics}
       />
     </div>
   );
