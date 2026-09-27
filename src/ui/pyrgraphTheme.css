@@ -183,10 +183,10 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 
 .workspace-header { position: sticky; top: 0; z-index: var(--pg-z-sticky); border-bottom: 1px solid var(--pg-line-soft); background: rgb(21 20 18 / 94%); backdrop-filter: blur(16px); }
 .workspace-header__inner { width: min(1720px, 100%); min-height: 70px; margin: 0 auto; padding: 10px 26px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
-.brand-lockup { display: flex; align-items: center; gap: 11px; min-width: 174px; }
-.brand-lockup img { width: 40px; height: 40px; object-fit: contain; }
-.brand-lockup__name { display: block; color: var(--pg-ink); font-size: 13px; font-weight: 760; letter-spacing: 0.12em; }
-.brand-lockup__descriptor { display: block; margin-top: 3px; color: var(--pg-ink-dim); font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; }
+.brand-group { display: flex; flex: 0 0 174px; align-items: center; gap: 11px; min-width: 0; }
+.brand-logo { display: block; flex: 0 0 40px; width: 40px; height: 40px; max-width: 40px; max-height: 40px; object-fit: contain; }
+.brand-title { display: block; color: var(--pg-ink); font-size: 13px; font-weight: 760; letter-spacing: 0.12em; }
+.brand-sub { display: block; margin-top: 3px; color: var(--pg-ink-dim); font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; }
 
 .team-picker { display: flex; align-items: center; gap: 4px; border: 1px solid var(--pg-line); border-radius: 10px; padding: 4px; background: var(--pg-surface-deep); }
 .team-picker__label { padding: 0 8px; color: var(--pg-ink-dim); font-size: 10px; }
@@ -357,8 +357,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
   .entry-title { font-size: 36px; }
   .motion-toggle { top: 12px; right: 12px; }
   .workspace-header__inner { padding: 10px 13px; }
-  .brand-lockup { min-width: 0; }
-  .brand-lockup__descriptor { display: none; }
+  .brand-group { flex-basis: auto; }
+  .brand-sub { display: none; }
   .header-actions { gap: 5px; }
   .utility-button { padding-inline: 8px; }
   .utility-button span { display: none; }
