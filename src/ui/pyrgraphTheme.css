@@ -176,12 +176,10 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 .motion-toggle svg { width: 13px; height: 13px; }
 
 .particle-drift { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.particle-drift span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #ffd28d; box-shadow: 0 0 11px rgb(255 137 59 / 46%); animation: particle-drift var(--pg-particle-duration, 20s) linear infinite; }
-.particle-drift.is-paused span { animation-play-state: paused; }
 
-.flame-reveal { position: fixed; inset: 0; z-index: var(--pg-z-overlay); overflow: hidden; background: #121110; pointer-events: none; animation: reveal-screen var(--pg-duration-reveal) linear both; }
-.flame-reveal__heat { position: absolute; top: 0; bottom: 0; left: -36vw; z-index: 2; width: min(42vw, 520px); background: linear-gradient(90deg, transparent 2%, rgb(255 95 24 / 36%) 38%, rgb(255 206 105 / 85%) 73%, rgb(255 101 28 / 42%) 86%, transparent); filter: blur(7px); animation: reveal-sweep var(--pg-duration-reveal) linear both; }
-.flame-reveal__brush { position: absolute; top: 0; bottom: 0; left: -36vw; z-index: 1; width: min(34vw, 430px); min-width: 200px; mask-image: linear-gradient(90deg, transparent, black 25%, black 67%, transparent); animation: reveal-sweep var(--pg-duration-reveal) linear both; }
+.flame-reveal { position: fixed; inset: 0; z-index: var(--pg-z-overlay); overflow: hidden; pointer-events: none; animation: reveal-glow var(--pg-duration-reveal) ease-out both; }
+.flame-reveal__heat { position: absolute; inset: auto 0 -15% 0; z-index: 2; height: 70%; background: radial-gradient(ellipse at 50% 100%, rgb(255 205 115 / 82%), rgb(255 100 32 / 40%) 34%, transparent 70%); filter: blur(22px); animation: reveal-rise var(--pg-duration-reveal) var(--pg-ease-state) both; }
+.flame-reveal__brush { position: absolute; inset: auto 0 -18% 0; z-index: 1; height: 90%; mask-image: linear-gradient(0deg, transparent, black 26%, black 66%, transparent); animation: reveal-rise var(--pg-duration-reveal) var(--pg-ease-state) both; }
 
 .workspace-header { position: sticky; top: 0; z-index: var(--pg-z-sticky); border-bottom: 1px solid var(--pg-line-soft); background: rgb(21 20 18 / 94%); backdrop-filter: blur(16px); }
 .workspace-header__inner { width: min(1720px, 100%); min-height: 70px; margin: 0 auto; padding: 10px 26px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
@@ -327,9 +325,8 @@ button:focus-visible, input:focus-visible, [role="button"]:focus-visible {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes entry-arrive { from { opacity: 0; transform: translateY(10px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
 @keyframes toast-arrive { from { opacity: 0; transform: translateY(-7px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes particle-drift { 0% { transform: translate3d(0, 14px, 0); } 50% { transform: translate3d(12px, -18px, 0); } 100% { transform: translate3d(-5px, -52px, 0); } }
-@keyframes reveal-screen { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 0 100%); } }
-@keyframes reveal-sweep { from { transform: translateX(0); } to { transform: translateX(145vw); } }
+@keyframes reveal-glow { 0%, 100% { opacity: 0; } 38%, 66% { opacity: 1; } }
+@keyframes reveal-rise { 0% { transform: translateY(80%); opacity: 0; } 38% { transform: translateY(2%); opacity: 1; } 68% { transform: translateY(-10%); opacity: 1; } 100% { transform: translateY(-55%); opacity: 0; } }
 
 @media (max-width: 1180px) {
   .workspace-header__inner { flex-wrap: wrap; padding-inline: 18px; }

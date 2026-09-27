@@ -4,6 +4,7 @@ import { CornerButton } from './CornerButton';
 
 const ToonFireball = React.lazy(() => import('./ToonFireball'));
 const Flame = React.lazy(() => import('./Flame'));
+const OriginkitParticleDrift = React.lazy(() => import('./OriginkitParticleDrift'));
 
 const STEPS = [
   'Preparing the current team snapshot',
@@ -58,22 +59,24 @@ export const MultiStepLoader: React.FC<{ activeStep: number; showFireball?: bool
   </section>;
 };
 
-export const ParticleDrift: React.FC<{ paused: boolean }> = ({ paused }) => (
-  <div className={`particle-drift${paused ? ' is-paused' : ''}`} aria-hidden="true">
-    {Array.from({ length: 18 }, (_, index) => (
-      <span
-        key={index}
-        style={{
-          left: `${(index * 47 + 9) % 100}%`,
-          top: `${(index * 31 + 13) % 100}%`,
-          animationDelay: `${(index % 7) * -1.4}s`,
-          animationDuration: `${18 + (index % 6) * 3}s`,
-          opacity: 0.16 + (index % 4) * 0.05,
-        }}
-      />
-    ))}
-  </div>
-);
+export const ParticleDrift: React.FC<{ paused: boolean }> = ({ paused }) => {
+  const animate = !paused && typeof window !== 'undefined' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return <div className="particle-drift" aria-hidden="true">
+    {animate && <Suspense fallback={null}><OriginkitParticleDrift
+      background="transparent"
+      baseColor="#d38a55"
+      accentColor="#ffd19a"
+      density={88}
+      dotSize={3}
+      speed={18}
+      direction={320}
+      hover={115}
+      linkDistance={92}
+      linkThickness={1}
+      style={{ minWidth: 0, minHeight: 0, width: '100%', height: '100%' }}
+    /></Suspense>}
+  </div>;
+};
 
 export const FlameReveal: React.FC = () => {
   const animateFlame = typeof window !== 'undefined' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
