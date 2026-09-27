@@ -10,6 +10,9 @@ function getGenAI(): GoogleGenAI | null {
   return genAIClient;
 }
 
+const draftCache = new Map<string, IntroResponse>();
+let quotaCooldownUntil = 0;
+
 export async function generateIntroDraft(req: IntroRequest): Promise<IntroResponse> {
   const { accountName, path, productBrief, viewerMemberId } = req;
   const tone: OutreachTone = req.tone || 'executive';
@@ -21,12 +24,19 @@ export async function generateIntroDraft(req: IntroRequest): Promise<IntroRespon
   // Grounding evidence citations
   const citations = path.primaryEvidence.length > 0 ? path.primaryEvidence : ['Recorded relationship connection'];
 
-  // Check if Gemini is configured
+  // Check cache first
+  const cacheKey = `${accountName}_${path.ownerMemberId}_${viewerMemberId}_${tone}_${productBrief.productName}`;
+  if (draftCache.has(cacheKey)) {
+    return draftCache.get(cacheKey)!;
+  }
+
+  // Check if Gemini is configured or currently cooling down from a 429
   const ai = getGenAI();
 
-  if (!ai) {
-    // Return honest, labeled fallback template
-    return generateDeterministicFallback(req, citations, tone);
+  if (!ai || Date.now() < quotaCooldownUntil) {
+    const fallback = generateDeterministicFallback(req, citations, tone);
+    draftCache.set(cacheKey, fallback);
+    return fallback;
   }
 
   try {
@@ -99,25 +109,45 @@ Return your response in strict JSON format matching this schema:
 }
 `;
 
-    const generatePromise = ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: tone === 'casual' ? 0.35 : 0.15,
-      },
-    });
+    // Attempt generation with primary model or fallback model
+    const callModel = async (modelName: string) => {
+      const generatePromise = ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: tone === 'casual' ? 0.35 : 0.15,
+        },
+      });
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini API call timed out after 3000ms')), 3000),
-    );
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Gemini call timed out after 3000ms for ${modelName}`)), 3000),
+      );
 
-    const response = await Promise.race([generatePromise, timeoutPromise]);
+      return Promise.race([generatePromise, timeoutPromise]);
+    };
+
+    let response;
+    try {
+      response = await callModel('gemini-3.8-flash');
+    } catch (primaryErr: unknown) {
+      const primaryMsg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+      if (primaryMsg.includes('429') || primaryMsg.includes('Quota exceeded') || primaryMsg.includes('RESOURCE_EXHAUSTED')) {
+        // Try flash-lite if primary model quota is saturated
+        try {
+          response = await callModel('gemini-3.1-flash-lite');
+        } catch {
+          throw primaryErr; // Rethrow to outer handler for cooldown
+        }
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const text = response.text || '';
     const parsed = JSON.parse(text);
 
-    return {
+    const result: IntroResponse = {
       actionType: parsed.actionType || path.recommendedActionType,
       recipientName: parsed.recipientName || (isOwnerViewer ? targetName : path.ownerMemberId),
       recipientRole: parsed.recipientRole || (isOwnerViewer ? targetRole : 'Co-Founder'),
@@ -129,9 +159,21 @@ Return your response in strict JSON format matching this schema:
       isTemplateFallback: false,
       tone,
     };
-  } catch (err) {
-    console.error('Gemini generation error, using fallback template:', err);
-    return generateDeterministicFallback(req, citations, tone);
+
+    draftCache.set(cacheKey, result);
+    return result;
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const isRateLimit = errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED');
+    if (isRateLimit) {
+      quotaCooldownUntil = Date.now() + 45000; // 45-second cooldown
+      console.warn('[PyrGraph AI Engine] Free tier quota reached; automatically using grounded deterministic fallback.');
+    } else {
+      console.warn('[PyrGraph AI Engine] Live model generation unavailable, using fallback template:', errMsg);
+    }
+    const fallback = generateDeterministicFallback(req, citations, tone);
+    draftCache.set(cacheKey, fallback);
+    return fallback;
   }
 }
 
