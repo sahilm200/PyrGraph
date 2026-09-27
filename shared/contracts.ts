@@ -204,3 +204,31 @@ export interface BootstrapResponse {
   initialGraph: GraphSnapshot;
   defaultProductBrief: ProductBrief;
 }
+
+export interface JudgeSubtest {
+  name: string;
+  passed: boolean;
+  note?: string;
+}
+
+export interface JudgeCategoryScore {
+  id: string;
+  name: string;
+  score: number;
+  maxScore: number;
+  passed: boolean;
+  details: string;
+  subtests: JudgeSubtest[];
+}
+
+export interface JudgeScorecard {
+  timestamp: string;
+  compositeScore: number;
+  maxScore: number;
+  percentage: number;
+  passingThreshold: number;
+  passed: boolean;
+  categories: JudgeCategoryScore[];
+  summary: string;
+  gitCommitSha?: string;
+}

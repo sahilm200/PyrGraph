@@ -96,14 +96,18 @@ export function evaluateAccountGraph(
       let score = 20;
 
       const hasExplicitOffer = edge.evidence.some((ev) => ev.type === 'explicit_intro_offer');
-      const hasWorkHistory = edge.evidence.some((ev) => ev.type === 'shared_work_history');
-      const hasSelfReportedClose = edge.evidence.some((ev) => ev.type === 'self_reported');
+      const hasRelationshipEvidence = edge.evidence.some(
+        (ev) =>
+          ev.type === 'shared_work_history' ||
+          ev.type === 'prior_meeting' ||
+          ev.type === 'self_reported',
+      );
       const isStrong = edge.strength === 'strong';
 
-      if (contact.isTargetBuyer && (hasExplicitOffer || (hasWorkHistory && isStrong))) {
+      if (contact.isTargetBuyer && (hasExplicitOffer || (hasRelationshipEvidence && isStrong))) {
         warmth = 'hot';
         score = 95;
-      } else if (hasWorkHistory || hasSelfReportedClose || isStrong) {
+      } else if (hasRelationshipEvidence || isStrong) {
         warmth = 'warm';
         score = 75;
       } else if (edge.evidence.some((ev) => ev.confidence === 'medium')) {

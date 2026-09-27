@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { INITIAL_GRAPH_SNAPSHOT, DEFAULT_PRODUCT_BRIEF, DEFAULT_TEAM } from './shared/fixture';
 import { evaluateAccountGraph } from './src/core/graph';
 import { generateIntroDraft } from './src/core/gemini';
+import { runAutomatedJudge } from './src/core/eval/judge';
 import { AnalysisRequest, IntroRequest } from './shared/contracts';
 
 dotenv.config();
@@ -80,6 +81,26 @@ app.post('/api/intro', async (req: Request, res: Response) => {
     res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to generate introduction',
     });
+  }
+});
+
+// 5. Automated evaluation judge audit (Rubric scoring >= 85% gate)
+app.get('/api/eval', async (_req: Request, res: Response) => {
+  try {
+    const scorecard = await runAutomatedJudge();
+    res.json(scorecard);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Evaluation failed' });
+  }
+});
+
+app.post('/api/eval', async (req: Request, res: Response) => {
+  try {
+    const commitSha = (req.body?.commitSha as string) || 'runtime';
+    const scorecard = await runAutomatedJudge(commitSha);
+    res.json(scorecard);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Evaluation failed' });
   }
 });
 

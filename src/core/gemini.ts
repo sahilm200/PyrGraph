@@ -99,7 +99,7 @@ Return your response in strict JSON format matching this schema:
 }
 `;
 
-    const response = await ai.models.generateContent({
+    const generatePromise = ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
@@ -107,6 +107,12 @@ Return your response in strict JSON format matching this schema:
         temperature: tone === 'casual' ? 0.35 : 0.15,
       },
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini API call timed out after 3000ms')), 3000),
+    );
+
+    const response = await Promise.race([generatePromise, timeoutPromise]);
 
     const text = response.text || '';
     const parsed = JSON.parse(text);
