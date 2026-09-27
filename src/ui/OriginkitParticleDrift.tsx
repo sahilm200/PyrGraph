@@ -231,10 +231,45 @@ function __OriginkitBase_ParticleDrift(props: Props) {
     useEffect(() => {
         const canvas = canvasRef.current
         if (!canvas) return
-        const gl = canvas.getContext("webgl", { alpha: true, antialias: false, depth: false, premultipliedAlpha: true })
+        const ctxOpts: WebGLContextAttributes = { alpha: true, antialias: false, depth: false, premultipliedAlpha: true }
+        const gl = (canvas.getContext("webgl2", ctxOpts) ||
+                    canvas.getContext("webgl", ctxOpts) ||
+                    canvas.getContext("experimental-webgl", ctxOpts)) as WebGLRenderingContext | null
         if (!gl) {
-            console.error("ParticleDrift: WebGL unavailable")
-            return
+            // Graceful 2D fallback for headless or restricted WebGL environments
+            const ctx2d = canvas.getContext("2d")
+            if (!ctx2d) return
+            let raf2d = 0
+            const n = 45
+            const cw = sizeRef.current.w || canvas.clientWidth || 1200
+            const ch = sizeRef.current.h || canvas.clientHeight || 800
+            canvas.width = cw
+            canvas.height = ch
+            const pts = Array.from({ length: n }, () => ({
+                x: Math.random() * cw,
+                y: Math.random() * ch,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: -Math.random() * 0.6 - 0.2,
+                r: Math.random() * 1.5 + 1,
+            }))
+            const render2d = () => {
+                ctx2d.clearRect(0, 0, canvas.width, canvas.height)
+                ctx2d.fillStyle = accentColor || "#ffd19a"
+                for (let i = 0; i < pts.length; i++) {
+                    const p = pts[i]
+                    p.x += p.vx
+                    p.y += p.vy
+                    if (p.y < 0) { p.y = canvas.height; p.x = Math.random() * canvas.width }
+                    if (p.x < 0) p.x = canvas.width
+                    if (p.x > canvas.width) p.x = 0
+                    ctx2d.beginPath()
+                    ctx2d.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+                    ctx2d.fill()
+                }
+                raf2d = requestAnimationFrame(render2d)
+            }
+            raf2d = requestAnimationFrame(render2d)
+            return () => cancelAnimationFrame(raf2d)
         }
 
         const lineProg = link(gl, LINE_VERT, LINE_FRAG)

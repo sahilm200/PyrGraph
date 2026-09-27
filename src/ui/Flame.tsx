@@ -227,9 +227,11 @@ function __OriginkitBase_Flame(props: FlameProps) {
     useEffect(() => {
         const canvas = canvasRef.current
         if (!canvas) return
-        const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false })
+        const ctxOpts: WebGLContextAttributes = { antialias: false, alpha: false, depth: false }
+        const gl = (canvas.getContext("webgl2", ctxOpts) ||
+                    canvas.getContext("webgl", ctxOpts) ||
+                    canvas.getContext("experimental-webgl", ctxOpts)) as WebGLRenderingContext | null
         if (!gl) {
-            console.error("Flame: WebGL unavailable")
             return
         }
 
