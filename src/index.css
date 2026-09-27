@@ -1,19 +1,18 @@
 @import "tailwindcss";
+@import "./ui/pyrgraphTheme.css";
 
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
-  background: #0d1117;
-}
+::-webkit-scrollbar-track { background: var(--pg-bg); }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: var(--pg-line);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: #61564b;
 }

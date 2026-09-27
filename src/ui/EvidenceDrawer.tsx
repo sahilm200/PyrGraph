@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   RankedAccount,
   ProductBrief,
@@ -6,7 +6,7 @@ import {
   OutreachTone,
 } from '../../shared/contracts';
 import { pyrgraphApi } from '../client/api';
-import { WARMTH_CONFIG } from './AccountCard';
+import { ACCESS_COLOR, ACCESS_LABEL } from './brand';
 import {
   X,
   Flame,
@@ -42,20 +42,27 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [editableSubject, setEditableSubject] = useState('');
+  const [editableBody, setEditableBody] = useState('');
+  const requestRef = useRef(0);
 
   // Reset draft when account changes
   useEffect(() => {
+    requestRef.current += 1;
     setDraft(null);
     setError(null);
-  }, [account?.id]);
+    setEditableSubject('');
+    setEditableBody('');
+  }, [account?.id, productBrief]);
 
   if (!account) return null;
 
-  const warmth = WARMTH_CONFIG[account.accessWarmth];
+  const accessColor = ACCESS_COLOR[account.accessWarmth];
   const path = account.bestPath;
 
   const handleGenerateDraft = async (toneToUse: OutreachTone = selectedTone) => {
     if (!path) return;
+    const requestId = ++requestRef.current;
     setIsGenerating(true);
     setError(null);
     try {
@@ -67,23 +74,26 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
         viewerMemberId,
         tone: toneToUse,
       });
+      if (requestId !== requestRef.current) return;
       setDraft(response);
+      setEditableSubject(response.subject);
+      setEditableBody(response.body);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error generating outreach with Gemini');
+      if (requestId === requestRef.current) setError(err instanceof Error ? err.message : 'Error generating outreach with Gemini');
     } finally {
-      setIsGenerating(false);
+      if (requestId === requestRef.current) setIsGenerating(false);
     }
   };
 
   const handleSelectTone = (tone: OutreachTone) => {
     setSelectedTone(tone);
-    if (draft && path) {
-      handleGenerateDraft(tone);
-    }
+    requestRef.current += 1;
+    setIsGenerating(false);
+    setDraft(null);
   };
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, key: string) => {
+    try { await navigator.clipboard.writeText(text); } catch { setError('Copy failed. Select the text and copy it manually.'); return; }
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
@@ -95,11 +105,9 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-white tracking-tight">{account.name}</h2>
-            <span
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${warmth.bg} ${warmth.text} ${warmth.border}`}
-            >
-              <Flame className="w-3 h-3 fill-current" />
-              {warmth.label}
+            <span className="access-badge" style={{ '--pg-access-color': accessColor } as React.CSSProperties}>
+              <Flame className="w-3 h-3 fill-current" aria-hidden="true" />
+              {ACCESS_LABEL[account.accessWarmth]}
             </span>
           </div>
           <p className="text-xs text-[#8b949e]">
@@ -321,7 +329,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="flex items-center justify-between text-[11px] text-[#8b949e]">
                     <span>Subject:</span>
                     <button
-                      onClick={() => copyToClipboard(draft.subject, 'subject')}
+                      onClick={() => copyToClipboard(editableSubject, 'subject')}
                       className="text-xs text-[#58a6ff] hover:text-white flex items-center gap-1"
                     >
                       {copiedKey === 'subject' ? (
@@ -335,9 +343,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                       )}
                     </button>
                   </div>
-                  <div className="p-2 bg-[#161b22] border border-[#30363d] rounded-lg text-xs font-medium text-white">
-                    {draft.subject}
-                  </div>
+                  <input className="w-full p-2 bg-[#161b22] border border-[#30363d] rounded-lg text-xs font-medium text-white" aria-label="Edit draft subject" value={editableSubject} onChange={(event) => setEditableSubject(event.target.value)} />
                 </div>
 
                 {/* Body Content */}
@@ -345,7 +351,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="flex items-center justify-between text-[11px] text-[#8b949e]">
                     <span>Message Body:</span>
                     <button
-                      onClick={() => copyToClipboard(draft.body, 'body')}
+                      onClick={() => copyToClipboard(editableBody, 'body')}
                       className="text-xs text-[#58a6ff] hover:text-white flex items-center gap-1"
                     >
                       {copiedKey === 'body' ? (
@@ -359,9 +365,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                       )}
                     </button>
                   </div>
-                  <div className="p-3 bg-[#161b22] border border-[#30363d] rounded-lg text-xs text-[#c9d1d9] whitespace-pre-wrap leading-relaxed font-sans">
-                    {draft.body}
-                  </div>
+                  <textarea className="w-full min-h-40 p-3 bg-[#161b22] border border-[#30363d] rounded-lg text-xs text-[#c9d1d9] leading-relaxed font-sans" aria-label="Edit draft message" value={editableBody} onChange={(event) => setEditableBody(event.target.value)} />
                 </div>
 
                 {/* Forwardable Blurb if requesting from teammate */}
