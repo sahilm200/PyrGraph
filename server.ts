@@ -2,6 +2,10 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { INITIAL_GRAPH_SNAPSHOT, DEFAULT_PRODUCT_BRIEF, DEFAULT_TEAM } from './shared/fixture';
+import { evaluateAccountGraph } from './src/core/graph';
+import { generateIntroDraft } from './src/core/gemini';
+import { AnalysisRequest, IntroRequest } from './shared/contracts';
 
 dotenv.config();
 
@@ -11,8 +15,73 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ----------------------------------------------------
+// PYRGRAPH API Endpoints
+// ----------------------------------------------------
+
+// 1. Health check
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'pyrgraph-engine',
+    time: new Date().toISOString(),
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+  });
+});
+
+// 2. Bootstrap default state
+app.get('/api/bootstrap', (req: Request, res: Response) => {
+  res.json({
+    team: DEFAULT_TEAM,
+    initialGraph: INITIAL_GRAPH_SNAPSHOT,
+    defaultProductBrief: DEFAULT_PRODUCT_BRIEF,
+  });
+});
+
+// 3. Analyze account graph (deterministic retrieval + ranking)
+app.post('/api/analyze', (req: Request, res: Response) => {
+  const { graphSnapshot, activeTeamMemberIds, productBrief, inputRevision } = req.body as AnalysisRequest;
+
+  if (!graphSnapshot || !activeTeamMemberIds) {
+    res.status(400).json({ error: 'Missing graphSnapshot or activeTeamMemberIds' });
+    return;
+  }
+
+  const result = evaluateAccountGraph(
+    graphSnapshot,
+    activeTeamMemberIds,
+    productBrief || DEFAULT_PRODUCT_BRIEF,
+  );
+
+  res.json({
+    inputRevision: inputRevision || 1,
+    accounts: result.accounts,
+    summary: result.summary,
+    graphView: result.graphView,
+  });
+});
+
+// 4. Intro generation with Gemini
+app.post('/api/intro', async (req: Request, res: Response) => {
+  try {
+    const introReq = req.body as IntroRequest;
+    if (!introReq.accountName || !introReq.path) {
+      res.status(400).json({ error: 'Invalid intro request: accountName and path are required' });
+      return;
+    }
+
+    const result = await generateIntroDraft(introReq);
+    res.json(result);
+  } catch (err: unknown) {
+    console.error('Error generating intro:', err);
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to generate introduction',
+    });
+  }
+});
 
 // Runtime credential storage if user enters them via UI
 const runtimeCredentials = {

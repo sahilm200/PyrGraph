@@ -5,540 +5,446 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Github,
-  Key,
-  ShieldCheck,
-  BookMarked,
-  Settings,
-  HelpCircle,
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink,
-  RefreshCw,
+  GraphSnapshot,
+  TeamMember,
+  RankedAccount,
+  ProductBrief,
+  AnalysisSummary,
+  GraphViewData,
+  AccessWarmth,
+} from '../shared/contracts';
+import { INITIAL_GRAPH_SNAPSHOT, DEFAULT_PRODUCT_BRIEF, DEFAULT_TEAM } from '../shared/fixture';
+import { pyrgraphApi } from './client/api';
+import { FlameLogo } from './ui/FlameLogo';
+import { AccountCard } from './ui/AccountCard';
+import { GraphCanvas } from './ui/GraphCanvas';
+import { EvidenceDrawer } from './ui/EvidenceDrawer';
+import { ProductBriefModal } from './ui/ProductBriefModal';
+import { CSVImportModal } from './ui/CSVImportModal';
+import { DiagnosticsDrawer } from './ui/DiagnosticsDrawer';
+import { runAllDiagnostics } from './core/eval/runner';
+import { EvaluationReport } from './core/eval/types';
+import {
+  Users,
   Sliders,
-  Terminal,
+  Upload,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Info,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  Shield,
+  Layers,
+  Cpu,
 } from 'lucide-react';
-import { GitHubUser, GitHubRepo, AuthStatus } from './types/github';
-import { SetupGuide } from './components/SetupGuide';
-import { ProfileHeader } from './components/ProfileHeader';
-import { RepoList } from './components/RepoList';
-import { RepoDetailModal } from './components/RepoDetailModal';
-import { ConnectModal } from './components/ConnectModal';
-import { ScopeSelectorModal } from './components/ScopeSelectorModal';
 
 export default function App() {
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
-  const [user, setUser] = useState<GitHubUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [authMethod, setAuthMethod] = useState<'oauth' | 'pat'>('oauth');
-  const [scopes, setScopes] = useState<string[]>(['read:user', 'user:email', 'repo']);
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [snapshot, setSnapshot] = useState<GraphSnapshot>(INITIAL_GRAPH_SNAPSHOT);
+  const [activeMemberIds, setActiveMemberIds] = useState<string[]>(['sahil']); // Starts with single member: Sahil
+  const [productBrief, setProductBrief] = useState<ProductBrief>(DEFAULT_PRODUCT_BRIEF);
+  const [inputRevision, setInputRevision] = useState<number>(1);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'setup' | 'api'>('dashboard');
-  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isConnectingOAuth, setIsConnectingOAuth] = useState(false);
+  const [accounts, setAccounts] = useState<RankedAccount[]>([]);
+  const [graphView, setGraphView] = useState<GraphViewData>({ nodes: [], edges: [] });
+  const [summary, setSummary] = useState<AnalysisSummary | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<RankedAccount | null>(null);
 
-  const [isPatModalOpen, setIsPatModalOpen] = useState(false);
-  const [isScopeModalOpen, setIsScopeModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [warmthFilter, setWarmthFilter] = useState<string>('all');
 
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [evalReport, setEvalReport] = useState<EvaluationReport | null>(null);
+  const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 3500);
   };
 
-  // Fetch Server Auth Configuration
-  const fetchAuthStatus = useCallback(async () => {
+  const handleRunDiagnostics = useCallback(async () => {
+    setIsRunningDiagnostics(true);
     try {
-      const res = await fetch('/api/auth/status');
-      if (res.ok) {
-        const data = await res.json();
-        setAuthStatus(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch auth status', err);
-    }
-  }, []);
-
-  // Fetch repositories
-  const fetchRepos = useCallback(async (authToken: string) => {
-    setIsLoadingRepos(true);
-    try {
-      const res = await fetch('/api/github/repos?per_page=100&sort=updated', {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch repositories');
-      setRepos(data.repos || []);
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Error fetching repositories', 'error');
-    } finally {
-      setIsLoadingRepos(false);
-    }
-  }, []);
-
-  // Fetch user profile
-  const fetchUserProfile = useCallback(async (authToken: string) => {
-    try {
-      const res = await fetch('/api/github/user', {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Session expired');
-      setUser(data.user);
-      return data.user;
-    } catch (err: unknown) {
-      console.warn('Failed to restore user session:', err);
-      // Clean up stale token
-      localStorage.removeItem('gh_token');
-      localStorage.removeItem('gh_method');
-      setToken(null);
-      setUser(null);
-      return null;
-    }
-  }, []);
-
-  // Initialize and check saved token
-  useEffect(() => {
-    fetchAuthStatus();
-
-    const savedToken = localStorage.getItem('gh_token');
-    const savedMethod = (localStorage.getItem('gh_method') as 'oauth' | 'pat') || 'oauth';
-
-    if (savedToken) {
-      setToken(savedToken);
-      setAuthMethod(savedMethod);
-      fetchUserProfile(savedToken).then((u) => {
-        if (u) {
-          fetchRepos(savedToken);
-        }
-      });
-    }
-  }, [fetchAuthStatus, fetchUserProfile, fetchRepos]);
-
-  // Listen for OAuth postMessage
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Validate origin
-      const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
-        return;
-      }
-
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const { token: receivedToken, user: receivedUser, scope: receivedScope } = event.data;
-        setIsConnectingOAuth(false);
-
-        if (receivedToken) {
-          setToken(receivedToken);
-          setAuthMethod('oauth');
-          localStorage.setItem('gh_token', receivedToken);
-          localStorage.setItem('gh_method', 'oauth');
-
-          if (receivedUser) {
-            setUser(receivedUser);
-          } else {
-            fetchUserProfile(receivedToken);
-          }
-
-          if (receivedScope) {
-            setScopes(
-              receivedScope
-                .split(',')
-                .map((s: string) => s.trim())
-                .filter(Boolean),
-            );
-          }
-
-          fetchRepos(receivedToken);
-          setActiveTab('dashboard');
-          showToast(`Successfully connected to GitHub as @${receivedUser?.login || 'user'}!`, 'success');
-        }
-      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
-        setIsConnectingOAuth(false);
-        showToast(event.data.error || 'GitHub connection failed.', 'error');
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [fetchUserProfile, fetchRepos]);
-
-  // Trigger OAuth Popup
-  const startOAuthFlow = async () => {
-    setIsConnectingOAuth(true);
-    try {
-      const redirectUri = `${window.location.origin}/auth/callback`;
-      const queryParams = new URLSearchParams({
-        redirect_uri: redirectUri,
-        scope: scopes.join(' '),
-      });
-
-      const response = await fetch(`/api/auth/url?${queryParams.toString()}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.notConfigured) {
-          setActiveTab('setup');
-          showToast('OAuth Client ID not configured. Please follow the setup guide.', 'error');
-        } else {
-          showToast(data.error || 'Failed to initialize OAuth authorization', 'error');
-        }
-        setIsConnectingOAuth(false);
-        return;
-      }
-
-      // Open OAuth provider's authorization URL directly in popup
-      const authWindow = window.open(
-        data.url,
-        'github_oauth_popup',
-        'width=600,height=720,scrollbars=yes,status=1',
+      const report = await runAllDiagnostics(snapshot, productBrief);
+      setEvalReport(report);
+      showToast(
+        `Diagnostics complete: ${report.passedCount}/${report.totalTests} tests passed (${report.durationMs}ms).`,
+        'success'
       );
-
-      if (!authWindow) {
-        setIsConnectingOAuth(false);
-        showToast('Please allow popups in your browser to complete GitHub authorization.', 'error');
-      }
-    } catch (err: unknown) {
-      setIsConnectingOAuth(false);
-      showToast(err instanceof Error ? err.message : 'Error starting OAuth popup', 'error');
+    } catch (err) {
+      console.error('Diagnostics error:', err);
+      showToast('Error executing diagnostics suite.', 'info');
+    } finally {
+      setIsRunningDiagnostics(false);
     }
+  }, [snapshot, productBrief]);
+
+  // Initial background diagnostics run
+  useEffect(() => {
+    runAllDiagnostics(snapshot, productBrief).then((rep) => setEvalReport(rep)).catch(() => {});
+  }, [snapshot, productBrief]);
+
+  // Run graph evaluation
+  const runAnalysis = useCallback(
+    async (
+      currentSnapshot: GraphSnapshot,
+      members: string[],
+      brief: ProductBrief,
+      rev: number,
+    ) => {
+      setIsAnalyzing(true);
+      try {
+        const response = await pyrgraphApi.analyze({
+          graphSnapshot: currentSnapshot,
+          activeTeamMemberIds: members,
+          productBrief: brief,
+          inputRevision: rev,
+        });
+
+        setAccounts(response.accounts);
+        setSummary(response.summary);
+        setGraphView(response.graphView);
+
+        // Update selected account reference if it exists
+        setSelectedAccount((prev) => {
+          if (!prev) return null;
+          return response.accounts.find((a) => a.id === prev.id) || null;
+        });
+      } catch (err) {
+        console.error('Analysis error:', err);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    },
+    [],
+  );
+
+  // Trigger analysis on state change
+  useEffect(() => {
+    runAnalysis(snapshot, activeMemberIds, productBrief, inputRevision);
+  }, [snapshot, activeMemberIds, productBrief, inputRevision, runAnalysis]);
+
+  // Toggle team member
+  const handleToggleMember = (memberId: string) => {
+    let next: string[];
+    if (activeMemberIds.includes(memberId)) {
+      if (activeMemberIds.length === 1) return; // Keep at least one
+      next = activeMemberIds.filter((id) => id !== memberId);
+      showToast(`Removed ${memberId}'s network.`, 'info');
+    } else {
+      next = [...activeMemberIds, memberId];
+      showToast(`Added ${memberId}'s network! New accounts and warm paths unlocked.`, 'success');
+    }
+    setActiveMemberIds(next);
+    setInputRevision((r) => r + 1);
   };
 
-  const handlePatConnected = (newToken: string, newUser: GitHubUser, grantedScopes: string[]) => {
-    setToken(newToken);
-    setUser(newUser);
-    setAuthMethod('pat');
-    setScopes(grantedScopes.length > 0 ? grantedScopes : ['repo', 'read:user']);
-    localStorage.setItem('gh_token', newToken);
-    localStorage.setItem('gh_method', 'pat');
-    fetchRepos(newToken);
-    setActiveTab('dashboard');
-    showToast(`Connected successfully with token as @${newUser.login}!`, 'success');
+  const handleImportComplete = (updatedSnapshot: GraphSnapshot) => {
+    setSnapshot(updatedSnapshot);
+    setInputRevision((r) => r + 1);
+    showToast('Imported connections merged into active graph!', 'success');
   };
 
-  const handleDisconnect = () => {
-    localStorage.removeItem('gh_token');
-    localStorage.removeItem('gh_method');
-    setToken(null);
-    setUser(null);
-    setRepos([]);
-    showToast('Disconnected from GitHub.', 'success');
+  const handleResetFixture = () => {
+    setSnapshot(INITIAL_GRAPH_SNAPSHOT);
+    setActiveMemberIds(['sahil']);
+    setProductBrief(DEFAULT_PRODUCT_BRIEF);
+    setInputRevision((r) => r + 1);
+    setSelectedAccount(null);
+    showToast('Reset to baseline demo fixture (Sahil only).', 'info');
   };
 
-  const handleRefresh = async () => {
-    if (!token) return;
-    setIsRefreshing(true);
-    await Promise.all([fetchUserProfile(token), fetchRepos(token)]);
-    setIsRefreshing(false);
-    showToast('Synced latest data with GitHub!', 'success');
-  };
+  const filteredAccounts = accounts.filter((acc) => {
+    const matchesSearch =
+      acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.industry.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesWarmth = warmthFilter === 'all' ? true : acc.accessWarmth === warmthFilter;
+    return matchesSearch && matchesWarmth;
+  });
+
+  const isYanniActive = activeMemberIds.includes('yanni');
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-[#c9d1d9] flex flex-col font-sans selection:bg-[#58a6ff]/20">
+    <div className="min-h-screen bg-[#0d1117] text-[#c9d1d9] flex flex-col font-sans selection:bg-[#f0883e]/20">
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-3 duration-200">
-          <div
-            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg shadow-2xl border text-xs font-medium ${
-              toast.type === 'success'
-                ? 'bg-[#161b22] border-emerald-500/40 text-emerald-400'
-                : 'bg-[#161b22] border-rose-500/40 text-rose-400'
-            }`}
-          >
-            {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            )}
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl shadow-2xl border border-[#f0883e]/40 bg-[#161b22] text-xs font-semibold text-white">
+            <Sparkles className="w-4 h-4 text-[#f0883e] shrink-0" />
             <span>{toast.message}</span>
           </div>
         </div>
       )}
 
-      {/* Main Navigation Bar */}
+      {/* Top Header */}
       <header className="border-b border-[#30363d] bg-[#161b22] sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          {/* Brand */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black shadow-sm">
-              <Github className="w-5 h-5 fill-current" />
-            </div>
+            <FlameLogo size={32} />
             <div>
-              <span className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-                GitHub Connect
-                <span className="text-[10px] font-normal font-mono bg-[#21262d] text-[#8b949e] px-1.5 py-0.5 rounded border border-[#30363d]">
-                  OAuth 2.0
+              <span className="text-sm font-extrabold text-white tracking-wider flex items-center gap-1.5">
+                PYRGRAPH
+                <span className="text-[10px] font-mono font-medium text-[#f0883e] bg-[#f0883e]/10 px-1.5 py-0.2 rounded border border-[#f0883e]/30">
+                  NETWORK INTEL
                 </span>
               </span>
             </div>
           </div>
 
-          {/* Navigation Links */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                activeTab === 'dashboard'
-                  ? 'bg-[#21262d] text-white border border-[#30363d]'
-                  : 'text-[#8b949e] hover:text-white'
-              }`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab('setup')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
-                activeTab === 'setup'
-                  ? 'bg-[#21262d] text-white border border-[#30363d]'
-                  : 'text-[#8b949e] hover:text-white'
-              }`}
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              Setup Guide
-            </button>
-            <button
-              onClick={() => setIsScopeModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#8b949e] hover:text-white hover:bg-[#21262d] transition-colors flex items-center gap-1"
-              title="Configure Scopes"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Scopes</span>
-            </button>
+          {/* Center: Team Reveal Toggle ("My Network" vs "Team Network") */}
+          <div className="flex items-center gap-2 bg-[#0d1117] p-1 rounded-xl border border-[#30363d]">
+            <span className="text-[11px] font-semibold text-[#8b949e] px-2 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" />
+              Team Graph:
+            </span>
+            {snapshot.members.map((member) => {
+              const isActive = activeMemberIds.includes(member.id);
+              return (
+                <button
+                  key={member.id}
+                  onClick={() => handleToggleMember(member.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-[#f0883e] text-black shadow-sm'
+                      : 'text-[#8b949e] hover:text-white hover:bg-[#21262d]'
+                  }`}
+                >
+                  <img
+                    src={member.avatar}
+                    alt={member.name}
+                    className="w-4 h-4 rounded-full border border-black/20"
+                  />
+                  <span>{member.name}</span>
+                  {isActive && <CheckCircle2 className="w-3 h-3 text-black stroke-[3]" />}
+                </button>
+              );
+            })}
+
+            {!isYanniActive && (
+              <span className="text-[10px] text-[#f0883e] font-semibold bg-[#f0883e]/10 px-2 py-0.5 rounded-md animate-pulse hidden md:inline">
+                + Click Yanni to reveal team accounts!
+              </span>
+            )}
           </div>
 
-          {/* Right Header Actions */}
+          {/* Right Header Utilities */}
           <div className="flex items-center gap-2">
-            {user ? (
-              <div className="flex items-center gap-2">
-                <img
-                  src={user.avatar_url}
-                  alt={user.login}
-                  className="w-7 h-7 rounded-full border border-[#30363d]"
-                />
-                <span className="text-xs font-medium text-white hidden sm:inline">
-                  @{user.login}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsPatModalOpen(true)}
-                  className="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] hover:text-white rounded-lg text-xs font-medium border border-[#30363d] transition-colors flex items-center gap-1.5"
-                >
-                  <Key className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="hidden sm:inline">Token</span>
-                </button>
-                <button
-                  onClick={startOAuthFlow}
-                  disabled={isConnectingOAuth}
-                  className="px-3.5 py-1.5 bg-[#238636] hover:bg-[#2ea043] text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {isConnectingOAuth ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      Connect
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
+            <button
+              onClick={() => setIsBriefModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-white text-xs font-medium border border-[#30363d] transition-colors flex items-center gap-1.5"
+              title="Edit Product Brief"
+            >
+              <Sliders className="w-3.5 h-3.5 text-[#f0883e]" />
+              <span className="hidden sm:inline">Product Brief</span>
+            </button>
+
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-white text-xs font-medium border border-[#30363d] transition-colors flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Import CSV</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsDiagnosticsOpen(true);
+                if (!evalReport) handleRunDiagnostics();
+              }}
+              className="px-3 py-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-white text-xs font-medium border border-[#30363d] transition-colors flex items-center gap-1.5"
+              title="Run Diagnostics & Grounding Evaluation"
+            >
+              <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Diagnostics</span>
+              {evalReport && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 ml-0.5 animate-pulse" />
+              )}
+            </button>
+
+            <button
+              onClick={handleResetFixture}
+              title="Reset Demo State"
+              className="p-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-[#8b949e] hover:text-white border border-[#30363d] transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {activeTab === 'setup' ? (
-          <SetupGuide
-            authStatus={authStatus}
-            onCredentialsSaved={fetchAuthStatus}
-            onOpenPatConnect={() => setIsPatModalOpen(true)}
-            onStartOAuth={startOAuthFlow}
-            isConnectingOAuth={isConnectingOAuth}
-          />
-        ) : user && token ? (
-          /* Authenticated Dashboard */
-          <div className="space-y-6">
-            <ProfileHeader
-              user={user}
-              authMethod={authMethod}
-              scopes={scopes}
-              onDisconnect={handleDisconnect}
-              onRefresh={handleRefresh}
-              isRefreshing={isRefreshing}
-            />
+      {/* Product Banner & Summary Metrics */}
+      <section className="bg-[#161b22] border-b border-[#30363d] py-3 px-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          {/* Brief info */}
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-[#8b949e]">
+              Selling:{' '}
+              <strong className="text-white font-semibold">{productBrief.productName}</strong> • Target Persona:{' '}
+              <span className="text-[#f0883e] font-semibold">{productBrief.targetBuyerRole}</span>
+            </div>
+            <button
+              onClick={() => setIsBriefModalOpen(true)}
+              className="text-[11px] text-[#58a6ff] hover:underline"
+            >
+              Edit
+            </button>
+          </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-3 px-1">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <BookMarked className="w-4 h-4 text-[#58a6ff]" />
-                  Your GitHub Repositories
-                </h2>
-              </div>
+          {/* Metric Badges */}
+          {summary && (
+            <div className="flex items-center gap-2 flex-wrap text-xs">
+              <span className="px-2.5 py-1 rounded-md bg-[#0d1117] border border-[#30363d] text-[#8b949e]">
+                Accounts: <strong className="text-white">{summary.totalAccounts}</strong>
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
+                Reachable: {summary.reachableAccounts}
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-[#da3633]/15 border border-[#da3633]/30 text-[#f85149] font-semibold">
+                Hot: {summary.hotAccounts}
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-[#f0883e]/15 border border-[#f0883e]/30 text-[#f0883e] font-semibold">
+                Warm: {summary.warmAccounts}
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-[#d29922]/15 border border-[#d29922]/30 text-[#e3b341] font-semibold">
+                Connected: {summary.connectedAccounts}
+              </span>
 
-              <RepoList
-                repos={repos}
-                onSelectRepo={(repo) => setSelectedRepo(repo)}
-                isLoading={isLoadingRepos}
+              {summary.newlyUnlockedByTeam > 0 && (
+                <span className="px-2.5 py-1 rounded-md bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold flex items-center gap-1 animate-pulse">
+                  <Sparkles className="w-3 h-3" />
+                  +{summary.newlyUnlockedByTeam} Unlocked by Yanni!
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Main Workspace Split Layout */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Account Recommendations (5 cols) */}
+        <div className="lg:col-span-5 space-y-4 flex flex-col">
+          {/* Search and Warmth Filter */}
+          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-3 space-y-2.5 shadow-sm">
+            <div className="relative">
+              <Search className="w-4 h-4 text-[#8b949e] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search target accounts or industry..."
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-[#8b949e] focus:outline-none focus:border-[#f0883e]"
               />
             </div>
-          </div>
-        ) : (
-          /* Unauthenticated Landing */
-          <div className="space-y-6">
-            <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-8 sm:p-12 text-center max-w-3xl mx-auto shadow-2xl relative overflow-hidden">
-              <div className="w-16 h-16 rounded-2xl bg-white text-black flex items-center justify-center mx-auto mb-6 shadow-xl">
-                <Github className="w-10 h-10 fill-current" />
-              </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Connect your GitHub Account
-              </h1>
-              <p className="text-sm text-[#8b949e] max-w-lg mx-auto mt-3 leading-relaxed">
-                Seamlessly authenticate using GitHub OAuth 2.0 popup flow or Personal Access Token to explore
-                repositories, analyze commits, view branches, and inspect credentials.
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+            {/* Filter pills */}
+            <div className="flex items-center gap-1 bg-[#0d1117] p-1 rounded-lg border border-[#30363d] text-xs">
+              {(['all', 'hot', 'warm', 'connected', 'cold'] as const).map((w) => (
                 <button
-                  onClick={startOAuthFlow}
-                  disabled={isConnectingOAuth}
-                  className="w-full sm:w-auto px-6 py-3 bg-[#238636] hover:bg-[#2ea043] text-white rounded-xl text-sm font-semibold shadow-lg shadow-emerald-950/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  key={w}
+                  onClick={() => setWarmthFilter(w)}
+                  className={`flex-1 py-1 rounded-md text-[11px] font-semibold capitalize transition-all ${
+                    warmthFilter === w
+                      ? 'bg-[#21262d] text-white shadow-xs border border-[#30363d]'
+                      : 'text-[#8b949e] hover:text-white'
+                  }`}
                 >
-                  {isConnectingOAuth ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Opening GitHub Auth...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" />
-                      Connect with GitHub OAuth
-                    </>
-                  )}
+                  {w}
                 </button>
-
-                <button
-                  onClick={() => setIsPatModalOpen(true)}
-                  className="w-full sm:w-auto px-5 py-3 bg-[#21262d] hover:bg-[#30363d] text-white rounded-xl text-sm font-medium border border-[#30363d] transition-colors flex items-center justify-center gap-2"
-                >
-                  <Key className="w-4 h-4 text-purple-400" />
-                  Connect with Access Token
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('setup')}
-                  className="w-full sm:w-auto px-4 py-3 text-xs text-[#8b949e] hover:text-white transition-colors"
-                >
-                  View Setup Instructions &rarr;
-                </button>
-              </div>
-
-              {/* Quick Feature Badges */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 pt-8 border-t border-[#30363d]/60 text-left">
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    Iframe-Safe OAuth
-                  </div>
-                  <p className="text-[11px] text-[#8b949e]">
-                    Direct popup flow with cross-origin postMessage communication built specifically for AI Studio.
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <BookMarked className="w-4 h-4 text-[#58a6ff]" />
-                    Repository Explorer
-                  </div>
-                  <p className="text-[11px] text-[#8b949e]">
-                    Browse public &amp; private repos, inspect branches, view recent commits, and copy clone links.
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <Key className="w-4 h-4 text-purple-400" />
-                    Flexible Access
-                  </div>
-                  <p className="text-[11px] text-[#8b949e]">
-                    Support for standard OAuth 2.0 app credentials as well as instant Personal Access Tokens (PAT).
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
-
-            {/* Quick Setup Card */}
-            <SetupGuide
-              authStatus={authStatus}
-              onCredentialsSaved={fetchAuthStatus}
-              onOpenPatConnect={() => setIsPatModalOpen(true)}
-              onStartOAuth={startOAuthFlow}
-              isConnectingOAuth={isConnectingOAuth}
-            />
           </div>
-        )}
-      </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#30363d] py-6 text-center text-xs text-[#8b949e] bg-[#161b22]">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>GitHub Connect • AI Studio Applet</span>
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              onClick={() => setActiveTab('setup')}
-              className="hover:text-white transition-colors"
-            >
-              Setup Guide
-            </button>
-            <a
-              href="https://docs.github.com/en/apps/oauth-apps/building-oauth-apps"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-white transition-colors flex items-center gap-1"
-            >
-              GitHub OAuth Docs
-              <ExternalLink className="w-3 h-3" />
-            </a>
+          {/* Account Cards Feed */}
+          <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-230px)] pr-1">
+            {filteredAccounts.map((account) => (
+              <AccountCard
+                key={account.id}
+                account={account}
+                isSelected={selectedAccount?.id === account.id}
+                onSelect={(acc) => setSelectedAccount(acc)}
+                viewerMemberId="sahil"
+              />
+            ))}
+
+            {filteredAccounts.length === 0 && (
+              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-8 text-center text-xs text-[#8b949e] space-y-2">
+                <p className="text-white font-semibold">No accounts match this filter.</p>
+                <p>Try switching to &quot;all&quot; or clearing your search term.</p>
+              </div>
+            )}
           </div>
         </div>
-      </footer>
+
+        {/* Right Column: 2D Interactive Graph & Path Viewer (7 cols) */}
+        <div className="lg:col-span-7 space-y-4 flex flex-col">
+          <GraphCanvas
+            graphView={graphView}
+            selectedAccount={selectedAccount}
+            onSelectAccountById={(id) => {
+              const acc = accounts.find((a) => a.id === id);
+              if (acc) setSelectedAccount(acc);
+            }}
+            activeMemberIds={activeMemberIds}
+          />
+
+          {/* Bottom helper card */}
+          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4 flex items-start gap-3 text-xs text-[#8b949e]">
+            <Info className="w-4 h-4 text-[#f0883e] shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-semibold text-white">How PYRGRAPH Evaluates Access:</span>
+              <p className="leading-relaxed">
+                We strictly separate <strong>Account Fit</strong> (why they need the product) from{' '}
+                <strong>Access Warmth</strong> (can we actually reach them). Toggle team members above to
+                watch the actual access graph and entry routes update in real time.
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Evidence & Gemini Outreach Drawer */}
+      <EvidenceDrawer
+        account={selectedAccount}
+        productBrief={productBrief}
+        viewerMemberId="sahil"
+        onClose={() => setSelectedAccount(null)}
+      />
 
       {/* Modals */}
-      <ConnectModal
-        isOpen={isPatModalOpen}
-        onClose={() => setIsPatModalOpen(false)}
-        onTokenConnected={handlePatConnected}
+      <ProductBriefModal
+        isOpen={isBriefModalOpen}
+        productBrief={productBrief}
+        onSave={(newBrief) => {
+          setProductBrief(newBrief);
+          setInputRevision((r) => r + 1);
+          showToast('Updated product brief and recalculated relevance.', 'success');
+        }}
+        onClose={() => setIsBriefModalOpen(false)}
       />
 
-      <ScopeSelectorModal
-        isOpen={isScopeModalOpen}
-        selectedScopes={scopes}
-        onChangeScopes={setScopes}
-        onConfirmAndLaunch={startOAuthFlow}
-        onClose={() => setIsScopeModalOpen(false)}
+      <CSVImportModal
+        isOpen={isImportModalOpen}
+        members={snapshot.members}
+        currentSnapshot={snapshot}
+        onImportComplete={handleImportComplete}
+        onClose={() => setIsImportModalOpen(false)}
       />
 
-      {selectedRepo && token && (
-        <RepoDetailModal
-          repo={selectedRepo}
-          authToken={token}
-          onClose={() => setSelectedRepo(null)}
-        />
-      )}
+      {/* In-App Interactive Diagnostics & Grounding Drawer */}
+      <DiagnosticsDrawer
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+        report={evalReport}
+        isRunning={isRunningDiagnostics}
+        onRunDiagnostics={handleRunDiagnostics}
+      />
     </div>
   );
 }
