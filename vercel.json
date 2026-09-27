@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index?route=api/:path*" },
+    { "source": "/auth/:path*", "destination": "/api/index?route=auth/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
