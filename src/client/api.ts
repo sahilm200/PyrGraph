@@ -7,6 +7,7 @@ import {
   IntroResponse,
   GraphSnapshot,
   ProductBrief,
+  JudgeScorecard,
 } from '../../shared/contracts';
 import { INITIAL_GRAPH_SNAPSHOT, DEFAULT_PRODUCT_BRIEF, DEFAULT_TEAM } from '../../shared/fixture';
 import { evaluateAccountGraph } from '../core/graph';
@@ -79,4 +80,21 @@ export const pyrgraphApi = {
 
     return await res.json();
   },
+
+  async runEvaluatorJudge(commitSha: string = 'runtime'): Promise<JudgeScorecard> {
+    try {
+      const res = await fetch('/api/eval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commitSha }),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      // Fallback to local evaluation judge
+    }
+
+    const { runAutomatedJudge } = await import('../core/eval/judge');
+    return await runAutomatedJudge(commitSha);
+  },
 };
+
