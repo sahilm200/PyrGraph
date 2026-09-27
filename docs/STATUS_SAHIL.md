@@ -3,6 +3,7 @@
 **Current Gate:** B0 / B1 (Deployed foundation & complete core)  
 **Status:** READY  
 **Branch:** sahil-engine  
+**Commit:** fae7c10  
 **Files:** `shared/**`, `server.ts`, `src/core/**`, `src/client/api.ts`  
 
 ### Work Completed:
